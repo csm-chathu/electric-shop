@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --color-primary:  #2563EB;
+    --color-sidebar:  #1E293B;
+    --color-app-bg:   #F8FAFC;
+    --color-success:  #16A34A;
+    --color-warning:  #F59E0B;
+    --color-danger:   #DC2626;
+    --color-text:     #0F172A;
+    --color-border:   #E2E8F0;
+}
+
+@layer base {
+    html {
+        font-family: 'Noto Sans Sinhala', sans-serif;
+    }
+
+    body {
+        font-size: 15px;
+    }
+
+    /* Form inputs, selects, textareas — 15px */
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+        font-size: 15px;
+    }
+
+    label {
+        font-size: 15px;
+    }
+
+    /* Table data cells — 14px */
+    td {
+        font-size: 14px;
+    }
+
+    th {
+        font-size: 13px;
+    }
+}
+
+@layer components {
+    /* Sidebar nav items — 15px */
+    .sidebar-nav-item {
+        font-size: 15px;
+    }
+
+    /* Dashboard stat card value — 22px; label — 18px */
+    .stat-card-value {
+        font-size: 22px;
+        line-height: 1.2;
+    }
+
+    .stat-card-label {
+        font-size: 18px;
+    }
+
+    /* Billing total amount — 36px; due label — 28px */
+    .billing-total-label {
+        font-size: 28px;
+    }
+
+    .billing-total-amount {
+        font-size: 36px;
+        line-height: 1.1;
+    }
+}
