@@ -1,66 +1,169 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Lumac POS
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Sinhala-first Point of Sale system built with Laravel + Vue (Inertia.js), packaged as a desktop app via Electron. Works fully offline — no internet required.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Layer | Technology |
+|---|---|
+| Backend | Laravel (PHP 8.1) |
+| Frontend | Vue 3 + Inertia.js + Tailwind CSS |
+| Database | SQLite |
+| Desktop | Electron (bundled PHP 8.1.33) |
+| Auth | Laravel Breeze + Spatie Permissions |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Default Logins
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+| Role | Email | Password |
+|---|---|---|
+| Admin | admin@example.com | password |
+| Manager | manager@example.com | password |
+| Cashier | cashier@example.com | password |
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Development Setup
 
-## Laravel Sponsors
+```bash
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+# Run web + Electron together
+npm run electron:dev
+```
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## License Key System
 
-## Contributing
+The app uses an **offline cryptographic license system** — no internet or server required at any point.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### How It Works
 
-## Code of Conduct
+Each key is a 16-character string (`XXXX-XXXX-XXXX-XXXX`) containing:
+- **Type** — `T` (trial) or `P` (paid) as the first character
+- **Payload** — random data (trial) or encoded date + random (paid)
+- **HMAC signature** — 6-char SHA-256 signature proving the key is genuine
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+The Electron app verifies the signature locally using a shared secret. No network call is made.
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Key Types
 
-## License
+#### Trial Key
+- Valid for **14 days** from first activation
+- Can be activated **any time** after generation
+- After 14 days: app shows expired screen, customer must enter paid key
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+#### Paid Key
+- **No expiry** once activated — works forever
+- Can only be activated **on the day it was generated**
+- If not used today, the key is dead — generate a new one tomorrow
+
+---
+
+### Generating Keys
+
+Run from the project root on **your machine** (not the customer's):
+
+```bash
+# Generate a 14-day trial key
+node scripts/keygen.cjs trial "Shop Name"
+
+# Generate a paid key (valid today only for activation)
+node scripts/keygen.cjs paid "Shop Name"
+```
+
+Example output:
+```
+─────────────────────────────────────
+  Key      : PAAS-RJ79-4ACA-8E54
+  Type     : Paid — valid TODAY only to activate (then works forever)
+  Customer : ABC Shop
+  Valid on : 2026-06-12
+─────────────────────────────────────
+```
+
+> **Keep `scripts/keygen.cjs` private.** Anyone with it can generate unlimited keys.
+
+---
+
+### Supplier Workflow
+
+```
+1. Customer enquires
+        ↓
+2. Run: node scripts/keygen.cjs trial "Shop Name"
+        ↓
+3. Send trial key to customer → they activate → 14 days starts
+        ↓
+4. Customer pays
+        ↓
+5. Run: node scripts/keygen.cjs paid "Shop Name"
+        ↓
+6. Email paid key to customer SAME DAY
+        ↓
+7. Customer opens app → Settings → "Enter New Key" → enters paid key
+        ↓
+8. App activates → works forever, no internet needed
+```
+
+---
+
+### Customer Experience
+
+| Day | What the customer sees |
+|---|---|
+| Day 0 | Activation window → enters trial key → app opens |
+| Day 1–11 | App opens normally |
+| Day 12–13 | Alert on startup: "Trial expires in X days. Go to Settings → Enter New Key" |
+| Day 14 | Activation window with "Trial Expired" header → enter paid key |
+| After paid key | App opens normally, forever |
+
+---
+
+### Changing License Key (customer side)
+
+After receiving the paid key, the customer goes to:
+
+**Settings → Enter New Key → types paid key → done**
+
+Or on the expired activation screen, enter the new paid key directly.
+
+---
+
+### Security Notes
+
+- Keys are verified by HMAC-SHA256 — cannot be forged without the secret
+- Paid keys embed the generation date — cannot be reused the next day
+- License is stored in an AES-256 encrypted file tied to the machine's MAC address
+- Copying `license.dat` to another machine will fail (MAC mismatch)
+- The shared secret in `electron/main.cjs` and `scripts/keygen.cjs` must stay identical and private
+
+---
+
+## File Structure (key files)
+
+```
+electron/
+  main.cjs                  ← Electron main process, license check, PHP server
+  preload.cjs               ← Exposes APIs to renderer
+  activation.html           ← License key entry screen
+  activation-preload.cjs    ← Preload for activation window
+
+scripts/
+  keygen.cjs                ← Key generator (run on your machine only)
+
+resources/
+  php-8.1.33/               ← Bundled PHP (no system PHP needed)
+  js/Pages/                 ← Vue pages
+  js/Layouts/               ← AuthenticatedLayout etc.
+```

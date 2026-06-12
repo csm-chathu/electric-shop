@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, provide, inject } from 'vue';
+import { ref, computed, provide, inject, onMounted, onUnmounted } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 const page = usePage();
@@ -22,6 +22,35 @@ function toggleCollapse() {
 const t            = inject('t');
 const locale       = inject('locale');
 const toggleLocale = inject('toggleLocale');
+
+// ── Global printer shortcut (Ctrl+Shift+P) ───────────────────────────────────
+const printerToast = ref(null);
+let printerToastTimer = null;
+
+function showPrinterToast(msg, type = 'success') {
+    printerToast.value = { msg, type };
+    clearTimeout(printerToastTimer);
+    printerToastTimer = setTimeout(() => { printerToast.value = null; }, 2500);
+}
+
+async function openGlobalPrinterPicker() {
+    if (!window.electronAPI?.isElectron) return;
+    const result = await window.electronAPI.openPrinterDialog();
+    if (result?.name) {
+        localStorage.setItem('pos_printer', result.name);
+        showPrinterToast(`🖨 ${result.name}`);
+    }
+}
+
+function onGlobalKeydown(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        openGlobalPrinterPicker();
+    }
+}
+
+onMounted(()   => window.addEventListener('keydown', onGlobalKeydown));
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown));
 
 const mainNavItems = [
     { labelKey: 'nav.dashboard',   routeName: 'dashboard',       icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>` },
@@ -57,6 +86,25 @@ const flashVisible = ref(true);
 <template>
     <div class="min-h-screen flex" style="background-color:#F8FAFC;">
 
+        <!-- ── Printer-saved toast (Ctrl+Shift+P) ── -->
+        <Transition name="printer-toast">
+            <div
+                v-if="printerToast"
+                class="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold pointer-events-none"
+                :style="printerToast.type === 'success'
+                    ? 'background:#0f172a; color:#38bdf8; border:1.5px solid #1e3a5f;'
+                    : 'background:#7f1d1d; color:#fca5a5; border:1.5px solid #991b1b;'"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                <div>
+                    <div style="font-size:10px; opacity:0.7; font-weight:500; margin-bottom:1px;">Printer saved</div>
+                    {{ printerToast.msg }}
+                </div>
+            </div>
+        </Transition>
+
         <!-- ───── Desktop Sidebar ───── -->
         <aside
             class="hidden md:flex md:flex-col md:fixed md:inset-y-0 z-30 print:hidden transition-all duration-300 overflow-hidden"
@@ -72,12 +120,12 @@ const flashVisible = ref(true);
                 style="background-color: var(--sidebar-header, #0f172a);"
             >
                 <Link :href="route('dashboard')" class="flex items-center gap-2 min-w-0">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background-color: var(--sidebar-active, #2563eb);">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <span v-if="!sidebarCollapsed" class="font-bold text-base text-white truncate">LUMAC POS</span>
+                    <img
+                        src="/lumac-load.jpeg"
+                        alt="LUMAC POS"
+                        class="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                    />
+                    <span v-if="!sidebarCollapsed" class="font-bold text-base text-white truncate">Lumac POS</span>
                 </Link>
             </div>
 
@@ -191,18 +239,7 @@ const flashVisible = ref(true);
                     </slot>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <!-- Language toggle -->
-                    <button
-                        type="button"
-                        @click="toggleLocale"
-                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-colors"
-                        style="border-color:#E2E8F0; color:#334155;"
-                        :title="t('lbl.language')"
-                    >
-                        <span>{{ locale === 'si' ? 'EN' : locale === 'en' ? 'த' : 'සි' }}</span>
-                    </button>
-
+                <div class="flex items-center gap-2 ml-4 pl-4" style="border-left:1px solid #E2E8F0;">
                     <div class="hidden sm:flex items-center gap-2">
                         <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background-color: var(--primary, #2563eb);">
                             <span class="text-sm font-bold text-white">{{ user?.name?.charAt(0)?.toUpperCase() }}</span>
@@ -363,4 +400,8 @@ const flashVisible = ref(true);
 .sidebar-tooltip {
     background-color: var(--sidebar-header, #0f172a);
 }
+
+/* Printer-saved toast */
+.printer-toast-enter-active, .printer-toast-leave-active { transition: all 0.25s ease; }
+.printer-toast-enter-from, .printer-toast-leave-to { opacity: 0; transform: translateY(12px); }
 </style>

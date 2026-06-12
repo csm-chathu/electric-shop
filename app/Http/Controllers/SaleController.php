@@ -222,7 +222,7 @@ class SaleController extends Controller
             return $sale;
         });
 
-        return redirect()->route('sales.show', $sale->id)
+        return redirect(route('sales.show', $sale->id) . '?autoPrint=1')
             ->with('success', 'විකුණුම සාර්ථකව සම්පූර්ණ විය.');
     }
 

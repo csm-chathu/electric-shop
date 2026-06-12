@@ -1,7 +1,8 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { computed, inject } from 'vue';
+import { router } from '@inertiajs/vue3';
+import { computed, inject, onMounted } from 'vue';
 
 const t     = inject('t');
 const tBill = inject('tBill');
@@ -48,9 +49,28 @@ const profit = computed(() => {
     }, 0);
 });
 
-function printReceipt() {
-    window.print();
+async function printReceipt() {
+    if (window.electronAPI?.isElectron) {
+        const printer = localStorage.getItem('pos_printer') || '';
+        const result  = await window.electronAPI.printReceipt(printer);
+        if (!result?.success) {
+            console.error('[print-receipt] failed:', result?.error);
+            window.print();
+        }
+    } else {
+        window.print();
+    }
 }
+
+const isElectron = !!window.electronAPI?.isElectron;
+
+onMounted(async () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autoPrint') === '1') {
+        await printReceipt();
+        router.visit(route('sales.create'));
+    }
+});
 </script>
 
 <template>
@@ -66,17 +86,6 @@ function printReceipt() {
                 </Link>
                 <h1 class="text-xl font-bold" style="color:#0F172A;">{{ sale.invoice_no }}</h1>
                 <div class="ml-auto flex gap-2">
-                    <button
-                        type="button"
-                        @click="printReceipt"
-                        class="flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold"
-                        style="background-color:#2563EB;"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        {{ t('btn.print') }}
-                    </button>
                     <Link
                         :href="route('sales.create')"
                         class="flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold"
@@ -91,8 +100,22 @@ function printReceipt() {
             </div>
         </template>
 
+        <!-- Print button — fixed top-right -->
+        <button
+            type="button"
+            @click="printReceipt"
+            title="Print"
+            class="no-print print-btn fixed z-50 flex items-center gap-2 text-white rounded-full shadow-lg overflow-hidden"
+            style="top:72px; right:24px; height:44px; padding:0 16px 0 14px; background-color:#2563EB;"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            <span class="print-label text-sm font-semibold">{{ t('btn.print') }}</span>
+        </button>
+
         <!-- Receipt centred on screen -->
-        <div id="receipt-wrapper" class="flex justify-center py-6">
+        <div id="receipt-wrapper" class="flex flex-col items-center py-6 gap-4">
             <div id="receipt-card" class="bg-white rounded-xl shadow-sm p-8" style="border:1px solid #E2E8F0; width:340px;">
 
                 <!-- Shop header -->
@@ -141,27 +164,32 @@ function printReceipt() {
                 <table class="items-section" style="width:100%; border-collapse:collapse; font-size:12px; color:#334155;">
                     <thead>
                         <tr style="border-bottom:1px solid #E2E8F0;">
-                            <th style="text-align:left; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('th.product') }}</th>
-                            <th style="text-align:center; width:30px; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('th.qty') }}</th>
-                            <th style="text-align:right; width:60px; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('th.price') }}</th>
-                            <th style="text-align:right; width:64px; padding:4px 4px 4px 0; font-weight:600; color:#64748B;">{{ tBill('lbl.total') }}</th>
+                            <th style="text-align:left; width:16px; padding:4px 4px 4px 0; font-weight:600; color:#64748B;">#</th>
+                            <th style="text-align:left; padding:4px 8px 4px 0; font-weight:600; color:#64748B;">{{ tBill('th.product') }}</th>
+                            <th style="text-align:center; width:28px; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('th.qty') }}</th>
+                            <th style="text-align:right; width:52px; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('th.price') }}</th>
+                            <th style="text-align:right; width:48px; padding:4px 0; font-weight:600; color:#F59E0B;">{{ tBill('lbl.discount') }}</th>
+                            <th style="text-align:right; width:56px; padding:4px 0; font-weight:600; color:#64748B;">{{ tBill('lbl.total') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <template v-for="item in sale.items" :key="item.id">
-                            <tr style="border-bottom:1px dashed #F1F5F9;">
-                                <td style="padding:5px 4px 5px 0; word-break:break-word;">
-                                    <div>{{ item.product_name }}</div>
-                                    <div v-if="item.product?.name_si" style="font-size:11px; color:#64748B;">{{ item.product.name_si }}</div>
+                        <template v-for="(item, index) in sale.items" :key="item.id">
+                            <!-- Line 1: item number + product names -->
+                            <tr>
+                                <td style="padding:3px 4px 0 0; color:#94A3B8; font-size:11px; vertical-align:top;">{{ index + 1 }}</td>
+                                <td colspan="5" style="padding:3px 8px 0 0; word-break:break-word;">
+                                    <span>{{ item.product_name?.split(' / ')[0] ?? item.product_name }}</span>
+                                    <span v-if="item.product?.name_si" style="font-size:11px; color:#64748B;"> / {{ item.product.name_si }}</span>
                                 </td>
-                                <td style="text-align:center; padding:5px 0;">{{ item.qty }}</td>
-                                <td style="text-align:right; padding:5px 0;">{{ n(item.unit_price) }}</td>
-                                <td style="text-align:right; padding:5px 4px 5px 0; font-weight:500;">{{ n(item.total) }}</td>
                             </tr>
-                            <tr v-if="Number(item.discount) > 0" style="border-bottom:1px dashed #F1F5F9;">
-                                <td colspan="4" style="padding:0 4px 4px 0; font-size:11px; color:#F59E0B;">
-                                    &nbsp;&nbsp;↳ {{ tBill('lbl.discount') }}: -{{ n(item.discount) }}
-                                </td>
+                            <!-- Line 2: qty / price / discount / total -->
+                            <tr style="border-bottom:1px dashed #F1F5F9;">
+                                <td style="padding:0 0 3px 0;"></td>
+                                <td style="padding:0 0 3px 0;"></td>
+                                <td style="text-align:center; padding:0 0 3px 0; color:#64748B;">{{ item.qty }}</td>
+                                <td style="text-align:right; padding:0 0 3px 0; color:#64748B;">{{ n(item.unit_price) }}</td>
+                                <td style="text-align:right; padding:0 0 3px 0; color:#F59E0B;">{{ Number(item.discount) > 0 ? n(item.discount) : '-' }}</td>
+                                <td style="text-align:right; padding:0 0 3px 0; font-weight:600;">{{ n(item.total) }}</td>
                             </tr>
                         </template>
                     </tbody>
@@ -195,27 +223,53 @@ function printReceipt() {
 
                 <div class="divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
-                <!-- Profit -->
-                <div class="flex justify-between text-[12px] font-semibold" style="color:#16A34A;">
-                    <span>{{ tBill('rep.profit') }}</span>
-                    <span>{{ currency }} {{ n(profit) }}</span>
-                </div>
-
-                <div class="divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
-
                 <!-- Footer -->
                 <p class="text-center font-bold text-[13px]" style="color:#0F172A; white-space: pre-line;">{{ footer }}</p>
+
+                <p class="text-center text-[10px] mt-3" style="color:#94A3B8;">lunac.lk</p>
             </div>
+
         </div>
     </AuthenticatedLayout>
 </template>
 
 <style>
+/* Print button pulse + label slide-in */
+.print-btn {
+    transition: box-shadow 0.2s, transform 0.2s;
+    animation: print-pulse 2.5s ease-in-out infinite;
+}
+.print-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 6px 20px rgba(37,99,235,0.45);
+    animation: none;
+}
+.print-btn:active {
+    transform: scale(0.96);
+}
+.print-label {
+    display: inline-block;
+    animation: label-slide 2.5s ease-in-out infinite;
+}
+@keyframes print-pulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(37,99,235,0.35); }
+    50%       { box-shadow: 0 4px 22px rgba(37,99,235,0.65); }
+}
+@keyframes label-slide {
+    0%, 80%, 100% { opacity: 1; transform: translateX(0); }
+    90%            { opacity: 0.6; transform: translateX(3px); }
+}
+
 @media print {
     @page {
         size: 80mm auto;
         margin: 0;
     }
+
+    .no-print {
+        display: none !important;
+    }
+
 
     /* Remove screen-only card chrome, add explicit print padding */
     #receipt-card {
@@ -258,9 +312,5 @@ function printReceipt() {
         max-width: 160px !important;
     }
 
-    /* Hide items table on print */
-    #receipt-card .items-section {
-        display: none !important;
-    }
 }
 </style>

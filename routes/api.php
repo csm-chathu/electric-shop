@@ -17,3 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// License activation — no auth required (called from Electron before login)
+Route::post('/license/activate', [\App\Http\Controllers\LicenseController::class, 'activate']);
+Route::post('/license/verify',   [\App\Http\Controllers\LicenseController::class, 'verify']);

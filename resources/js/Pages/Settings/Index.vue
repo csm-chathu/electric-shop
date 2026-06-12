@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch, inject, onMounted } from 'vue';
+import { getPrinters, isElectronRuntime } from '@/utils/printClient.js';
 import { SIDEBAR_PRESETS, PRIMARY_PRESETS, useTheme } from '@/composables/useTheme.js';
 
 const t             = inject('t');
@@ -22,12 +23,35 @@ const props = defineProps({
     settings: { type: Object, default: () => ({}) },
 });
 
+// Printer (Electron only)
+const isElectron    = isElectronRuntime();
+const electronAPI   = window.electronAPI ?? null;
+const printers      = ref([]);
+const selectedPrinter = ref(localStorage.getItem('pos_printer') || '');
+
+async function loadPrinters() {
+    if (!isElectron) return;
+    printers.value = await getPrinters();
+    if (!selectedPrinter.value) {
+        const def = printers.value.find(p => p.isDefault);
+        if (def) selectedPrinter.value = def.name;
+    }
+}
+
+function savePrinter() {
+    localStorage.setItem('pos_printer', selectedPrinter.value);
+    toast.value = { type: 'success', message: 'Printer saved' };
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toast.value = null; }, 2000);
+}
+
 // Sync DB settings to composables on mount
 onMounted(() => {
     if (props.settings.ui_language)   setLocale(props.settings.ui_language);
     if (props.settings.bill_language) setBillLocale(props.settings.bill_language);
     if (props.settings.sidebar_theme) setSidebarPreset(props.settings.sidebar_theme);
     if (props.settings.primary_color) setPrimaryPreset(props.settings.primary_color);
+    loadPrinters();
 });
 
 const flash = computed(() => usePage().props.flash);
@@ -354,6 +378,58 @@ function save() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Printer selector (Electron only) -->
+            <div v-if="isElectron" class="mt-5 p-4 rounded-xl" style="background:#F8FAFC; border:1px solid #E2E8F0;">
+                <h3 class="text-sm font-semibold mb-3" style="color:#334155;">🖨 Receipt Printer</h3>
+                <div class="flex items-center gap-3">
+                    <select
+                        v-model="selectedPrinter"
+                        class="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
+                        style="border:1px solid #E2E8F0; color:#0F172A;"
+                    >
+                        <option value="">— Select printer —</option>
+                        <option v-for="p in printers" :key="p.name" :value="p.name">
+                            {{ p.name }}{{ p.isDefault ? ' (Default)' : '' }}
+                        </option>
+                    </select>
+                    <button
+                        type="button"
+                        @click="savePrinter"
+                        class="px-4 py-2 rounded-lg text-white text-sm font-semibold"
+                        style="background-color:#2563EB;"
+                    >Save Printer</button>
+                    <button
+                        type="button"
+                        @click="loadPrinters"
+                        class="px-3 py-2 rounded-lg text-sm font-semibold"
+                        style="background:#E2E8F0; color:#475569;"
+                        title="Refresh printer list"
+                    >↺</button>
+                </div>
+                <p v-if="selectedPrinter" class="mt-2 text-xs" style="color:#64748B;">
+                    Selected: <strong>{{ selectedPrinter }}</strong>
+                </p>
+            </div>
+
+            <!-- License key (Electron only) -->
+            <div v-if="isElectron" class="mt-5 p-4 rounded-xl flex items-center justify-between gap-4" style="background:#F8FAFC; border:1px solid #E2E8F0;">
+                <div>
+                    <p class="text-sm font-semibold" style="color:#0F172A;">License Key</p>
+                    <p class="text-xs mt-0.5" style="color:#64748B;">Received a new license key after payment? Enter it here.</p>
+                </div>
+                <button
+                    type="button"
+                    @click="electronAPI?.changeLicenseKey()"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white shrink-0"
+                    style="background:#2563EB;"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    Enter New Key
+                </button>
             </div>
 
             <!-- Save button — full width below both columns -->

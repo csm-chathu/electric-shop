@@ -65,6 +65,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Users & Permissions (admin only)
     Route::resource('users', UserController::class);
+
+    // License management (admin only)
+    Route::get('/licenses',                       [\App\Http\Controllers\LicenseController::class, 'index'])->name('licenses.index');
+    Route::post('/licenses',                      [\App\Http\Controllers\LicenseController::class, 'store'])->name('licenses.store');
+    Route::patch('/licenses/{license}',           [\App\Http\Controllers\LicenseController::class, 'update'])->name('licenses.update');
+    Route::post('/licenses/{license}/upgrade',    [\App\Http\Controllers\LicenseController::class, 'upgrade'])->name('licenses.upgrade');
+    Route::delete('/licenses/{license}',          [\App\Http\Controllers\LicenseController::class, 'destroy'])->name('licenses.destroy');
 });
 
 require __DIR__.'/auth.php';

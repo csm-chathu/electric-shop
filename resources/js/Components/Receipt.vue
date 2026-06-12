@@ -49,10 +49,19 @@ const paymentMethodLabel = {
 const items    = computed(() => props.sale?.items    || []);
 const payments = computed(() => props.sale?.payments || []);
 
-// ─── Print function ───────────────────────────────────────────────────────────
-function printReceipt() {
-    window.print();
+// ─── Print functions ──────────────────────────────────────────────────────────
+const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+
+async function printReceipt() {
+    if (isElectron) {
+        const printer = localStorage.getItem('pos_printer') || '';
+        const result  = await window.electronAPI.printReceipt(printer);
+        if (!result?.success) window.print();
+    } else {
+        window.print();
+    }
 }
+
 </script>
 
 <template>

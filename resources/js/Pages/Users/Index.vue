@@ -6,7 +6,7 @@ import { inject } from 'vue';
 const t = inject('t');
 
 const props = defineProps({
-    users: { type: Array, default: () => [] },
+    users: { type: Object, default: () => ({ data: [] }) },
 });
 
 const roleClass = {
@@ -44,11 +44,11 @@ function deleteUser(id) {
 
         <!-- Mobile cards -->
         <div class="md:hidden space-y-3 mb-4">
-            <div v-if="users.length === 0" class="bg-white rounded-xl p-6 text-center text-gray-400">
+            <div v-if="users.data.length === 0" class="bg-white rounded-xl p-6 text-center text-gray-400">
                 {{ t('usr.no_users') }}
             </div>
             <div
-                v-for="user in users"
+                v-for="user in users.data"
                 :key="user.id"
                 class="bg-white rounded-xl shadow-sm border border-gray-100 p-4"
             >
@@ -69,7 +69,7 @@ function deleteUser(id) {
                 </div>
                 <div class="flex gap-2">
                     <Link
-                        :href="route('users.edit', user.id)"
+                        :href="route('users.edit', { user: user.id })"
                         class="flex-1 text-center bg-blue-50 hover:bg-blue-100 text-blue-600 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] flex items-center justify-center"
                     >
                         {{ t('btn.edit') }}
@@ -96,11 +96,11 @@ function deleteUser(id) {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    <tr v-if="users.length === 0">
+                    <tr v-if="users.data.length === 0">
                         <td colspan="4" class="px-4 py-8 text-center text-gray-400">{{ t('usr.no_users') }}</td>
                     </tr>
                     <tr
-                        v-for="user in users"
+                        v-for="user in users.data"
                         :key="user.id"
                         class="hover:bg-gray-50 transition-colors"
                     >
@@ -124,7 +124,7 @@ function deleteUser(id) {
                         <td class="px-4 py-3">
                             <div class="flex items-center justify-end gap-2">
                                 <Link
-                                    :href="route('users.edit', user.id)"
+                                    :href="route('users.edit', { user: user.id })"
                                     class="text-blue-600 hover:text-blue-800 text-sm font-medium px-3 py-1.5 rounded hover:bg-blue-50 min-h-[36px] flex items-center"
                                 >
                                     {{ t('btn.edit') }}
