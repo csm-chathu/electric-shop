@@ -9,6 +9,7 @@ const crypto  = require('crypto');
 
 const APP_PORT = 8000;
 const APP_URL  = `http://127.0.0.1:${APP_PORT}`;
+const LIVE_URL = 'https://pos.lumac.lk'; // set to '' to use local PHP server
 
 // ── Paths ──────────────────────────────────────────────────────────────────────
 // In packaged build:  resources are under process.resourcesPath
@@ -354,8 +355,8 @@ async function createWindow() {
   });
 
   try {
-    await waitForServer();
-    mainWindow.loadURL(APP_URL);
+    if (!LIVE_URL) await waitForServer();
+    mainWindow.loadURL(LIVE_URL || APP_URL);
 
     // Once the app page finishes loading, close splash and show main window
     mainWindow.webContents.once('did-finish-load', () => {
@@ -580,9 +581,11 @@ ipcMain.handle('db:migrate', () => {
 });
 
 app.whenReady().then(async () => {
-  ensureEnv();
-  runMigrations();
-  startPhpServer();
+  if (!LIVE_URL) {
+    ensureEnv();
+    runMigrations();
+    startPhpServer();
+  }
 
   const license = checkLicense();
 

@@ -50,19 +50,26 @@ const profit = computed(() => {
 });
 
 async function printReceipt() {
-    if (window.electronAPI?.isElectron) {
-        const printer = localStorage.getItem('pos_printer') || '';
-        const result  = await window.electronAPI.printReceipt(printer);
-        if (!result?.success) {
-            console.error('[print-receipt] failed:', result?.error);
+    if (printing.value) return;
+    printing.value = true;
+    try {
+        if (window.electronAPI?.isElectron) {
+            const printer = localStorage.getItem('pos_printer') || '';
+            const result  = await window.electronAPI.printReceipt(printer);
+            if (!result?.success) {
+                console.error('[print-receipt] failed:', result?.error);
+                window.print();
+            }
+        } else {
             window.print();
         }
-    } else {
-        window.print();
+    } finally {
+        setTimeout(() => { printing.value = false; }, 3000);
     }
 }
 
 const isElectron = !!window.electronAPI?.isElectron;
+const printing   = ref(false);
 
 onMounted(async () => {
     const params = new URLSearchParams(window.location.search);
@@ -104,14 +111,21 @@ onMounted(async () => {
         <button
             type="button"
             @click="printReceipt"
+            :disabled="printing"
             title="Print"
-            class="no-print print-btn fixed z-50 flex items-center gap-2 text-white rounded-full shadow-lg overflow-hidden"
-            style="top:72px; right:24px; height:44px; padding:0 16px 0 14px; background-color:#2563EB;"
+            class="no-print print-btn fixed z-50 flex items-center gap-2 text-white rounded-full shadow-lg overflow-hidden transition-all"
+            :style="`top:72px; right:24px; height:44px; padding:0 16px 0 14px; background-color:${printing ? '#6B7280' : '#2563EB'}; cursor:${printing ? 'not-allowed' : 'pointer'};`"
         >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <!-- Spinner while printing -->
+            <svg v-if="printing" class="h-5 w-5 shrink-0 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+            </svg>
+            <!-- Printer icon normally -->
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            <span class="print-label text-sm font-semibold">{{ t('btn.print') }}</span>
+            <span class="print-label text-sm font-semibold">{{ printing ? 'Printing…' : t('btn.print') }}</span>
         </button>
 
         <!-- Receipt centred on screen -->
@@ -161,7 +175,7 @@ onMounted(async () => {
                 <div class="items-section divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
                 <!-- Items -->
-                <table class="items-section" style="width:100%; border-collapse:collapse; font-size:12px; color:#0F172A; font-weight:700;">
+                <table class="items-section" style="width:100%; border-collapse:collapse; font-size:12px; color:#0F172A; font-weight:800;">
                     <thead>
                         <tr style="border-bottom:2px solid #CBD5E1;">
                             <th style="text-align:left; width:16px; padding:4px 4px 4px 0; font-weight:800;">#</th>
@@ -176,19 +190,19 @@ onMounted(async () => {
                         <template v-for="(item, index) in sale.items" :key="item.id">
                             <!-- Line 1: item number + product names -->
                             <tr>
-                                <td style="padding:4px 4px 0 0; font-weight:700; vertical-align:top;">{{ index + 1 }}</td>
+                                <td style="padding:4px 4px 0 0; font-weight:800; vertical-align:top;">{{ index + 1 }}</td>
                                 <td colspan="5" style="padding:4px 8px 0 0; word-break:break-word; font-weight:800; color:#0F172A;">
                                     <span>{{ item.product_name?.split(' / ')[0] ?? item.product_name }}</span>
-                                    <span v-if="item.product?.name_si" style="font-size:11px; font-weight:700; color:#334155;"> / {{ item.product.name_si }}</span>
+                                    <span v-if="item.product?.name_si" style="font-size:11px; font-weight:800; color:#334155;"> / {{ item.product.name_si }}</span>
                                 </td>
                             </tr>
                             <!-- Line 2: qty / price / discount / total -->
                             <tr style="border-bottom:1px dashed #CBD5E1;">
                                 <td style="padding:0 0 5px 0;"></td>
                                 <td style="padding:0 0 5px 0;"></td>
-                                <td style="text-align:center; padding:0 0 5px 0; font-weight:700;">{{ item.qty }}</td>
-                                <td style="text-align:right; padding:0 0 5px 0; font-weight:700;">{{ n(item.unit_price) }}</td>
-                                <td style="text-align:right; padding:0 0 5px 0; color:#D97706; font-weight:700;">{{ Number(item.discount) > 0 ? n(item.discount) : '-' }}</td>
+                                <td style="text-align:center; padding:0 0 5px 0; font-weight:800;">{{ item.qty }}</td>
+                                <td style="text-align:right; padding:0 0 5px 0; font-weight:800;">{{ n(item.unit_price) }}</td>
+                                <td style="text-align:right; padding:0 0 5px 0; color:#D97706; font-weight:800;">{{ Number(item.discount) > 0 ? n(item.discount) : '-' }}</td>
                                 <td style="text-align:right; padding:0 0 5px 0; font-weight:800; color:#0F172A;">{{ n(item.total) }}</td>
                             </tr>
                         </template>
@@ -293,7 +307,7 @@ onMounted(async () => {
     }
 
     #receipt-card * {
-        font-weight: 700 !important;
+        font-weight: 800 !important;
     }
 
     #receipt-card .shop-title {
