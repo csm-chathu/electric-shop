@@ -28,7 +28,7 @@ const paymentLabel = computed(() => {
 
 function fmtDate(d) {
     if (!d) return '';
-    return new Date(d).toLocaleDateString('si-LK', { year: 'numeric', month: 'long', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
 function fmtTime(d) {
@@ -149,28 +149,28 @@ onMounted(async () => {
                 <div class="divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
                 <!-- Invoice meta -->
-                <div class="text-[12px] space-y-1 mb-1 font-bold" style="color:#1E293B;">
-                    <div class="flex justify-between">
-                        <span>{{ tBill('th.invoice') }}</span>
-                        <span class="font-extrabold">{{ sale.invoice_no }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>{{ tBill('th.date') }}</span>
-                        <span>{{ fmtDate(sale.created_at) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>{{ tBill('th.time') }}</span>
-                        <span>{{ fmtTime(sale.created_at) }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>{{ tBill('lbl.cashier') }}</span>
-                        <span>{{ sale.user?.name }}</span>
-                    </div>
-                    <div v-if="sale.customer" class="flex justify-between">
-                        <span>{{ tBill('lbl.customer') }}</span>
-                        <span>{{ sale.customer.name }}</span>
-                    </div>
-                </div>
+                <table class="meta-table" style="width:100%; border-collapse:collapse; font-size:12px; font-weight:700; color:#1E293B; margin-bottom:4px;">
+                    <tr>
+                        <td class="meta-label">{{ tBill('th.invoice') }}</td>
+                        <td class="meta-value font-extrabold">{{ sale.invoice_no }}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">{{ tBill('th.date') }}</td>
+                        <td class="meta-value">{{ fmtDate(sale.created_at) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">{{ tBill('th.time') }}</td>
+                        <td class="meta-value">{{ fmtTime(sale.created_at) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="meta-label">{{ tBill('lbl.cashier') }}</td>
+                        <td class="meta-value">{{ sale.user?.name }}</td>
+                    </tr>
+                    <tr v-if="sale.customer">
+                        <td class="meta-label">{{ tBill('lbl.customer') }}</td>
+                        <td class="meta-value">{{ sale.customer.name }}</td>
+                    </tr>
+                </table>
 
                 <div class="items-section divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
@@ -212,28 +212,28 @@ onMounted(async () => {
                 <div class="items-section divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
                 <!-- Totals -->
-                <div class="space-y-1.5 text-[12px] font-bold" style="color:#0F172A;">
-                    <div class="flex justify-between">
-                        <span>{{ tBill('lbl.subtotal') }}</span>
-                        <span>{{ n(sale.subtotal) }}</span>
-                    </div>
-                    <div v-if="Number(sale.discount) > 0" class="flex justify-between" style="color:#D97706;">
-                        <span>{{ tBill('lbl.discount') }}</span>
-                        <span>-{{ n(sale.discount) }}</span>
-                    </div>
-                    <div class="total-row flex justify-between text-[15px] pt-2" style="color:#0F172A; border-top:2px solid #0F172A; font-weight:800;">
-                        <span>{{ tBill('lbl.total') }}</span>
-                        <span style="color:#2563EB;">{{ currency }} {{ n(sale.total) }}</span>
-                    </div>
-                    <div class="flex justify-between" style="color:#16A34A;">
-                        <span>{{ tBill('th.paid') }} ({{ paymentLabel }})</span>
-                        <span>{{ n(sale.payments?.[0]?.amount) }}</span>
-                    </div>
-                    <div v-if="Number(sale.balance) < 0" class="flex justify-between">
-                        <span>{{ tBill('lbl.change') }}</span>
-                        <span>{{ n(Math.abs(sale.balance)) }}</span>
-                    </div>
-                </div>
+                <table style="width:100%; border-collapse:collapse; font-size:12px; font-weight:700; color:#0F172A;">
+                    <tr>
+                        <td class="meta-label">{{ tBill('lbl.subtotal') }}</td>
+                        <td class="meta-value">{{ n(sale.subtotal) }}</td>
+                    </tr>
+                    <tr v-if="Number(sale.discount) > 0" style="color:#D97706;">
+                        <td class="meta-label">{{ tBill('lbl.discount') }}</td>
+                        <td class="meta-value">-{{ n(sale.discount) }}</td>
+                    </tr>
+                    <tr class="total-row" style="border-top:2px solid #0F172A; font-size:15px; font-weight:800;">
+                        <td class="meta-label" style="padding-top:6px;">{{ tBill('lbl.total') }}</td>
+                        <td class="meta-value" style="padding-top:6px; color:#2563EB;">{{ currency }} {{ n(sale.total) }}</td>
+                    </tr>
+                    <tr style="color:#16A34A;">
+                        <td class="meta-label">{{ tBill('th.paid') }} ({{ paymentLabel }})</td>
+                        <td class="meta-value">{{ n(sale.payments?.[0]?.amount) }}</td>
+                    </tr>
+                    <tr v-if="Number(sale.balance) < 0">
+                        <td class="meta-label">{{ tBill('lbl.change') }}</td>
+                        <td class="meta-value">{{ n(Math.abs(sale.balance)) }}</td>
+                    </tr>
+                </table>
 
                 <div class="divider" style="border-top:1px dashed #CBD5E1; margin:10px 0;"></div>
 
@@ -274,6 +274,19 @@ onMounted(async () => {
     90%            { opacity: 0.6; transform: translateX(3px); }
 }
 
+/* Meta table: label left, value right */
+.meta-label {
+    text-align: left;
+    padding: 2px 8px 2px 0;
+    white-space: nowrap;
+    width: 1%;
+}
+.meta-value {
+    text-align: right;
+    padding: 2px 0;
+    word-break: break-word;
+}
+
 @media print {
     @page {
         size: 80mm auto;
@@ -296,7 +309,8 @@ onMounted(async () => {
     /* Strip all padding/margin from the ancestor chain so receipt reaches top */
     body > div,
     body > div > div,
-    body > div > div > main {
+    body > div > div > main,
+    main, [id="app"], [id="app"] > div {
         display: block !important;
         padding: 0 !important;
         margin: 0 !important;
@@ -314,7 +328,7 @@ onMounted(async () => {
         display: block !important;
         width: 80mm !important;
         max-width: 80mm !important;
-        padding: 4mm 5mm !important;
+        padding: 3mm 4mm !important;
         margin: 0 !important;
         border: none !important;
         box-shadow: none !important;
