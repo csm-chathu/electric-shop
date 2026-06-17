@@ -67,8 +67,9 @@ class ProductController extends Controller
             'variants.*.cost_price'      => 'nullable|numeric|min:0',
             'variants.*.selling_price'   => 'required|numeric|min:0',
             'variants.*.wholesale_price' => 'nullable|numeric|min:0',
-            'variants.*.stock_qty'       => 'nullable|numeric|min:0',
-            'variants.*.alert_qty'       => 'nullable|numeric|min:0',
+            'variants.*.stock_qty'          => 'nullable|numeric|min:0',
+            'variants.*.alert_qty'          => 'nullable|numeric|min:0',
+            'variants.*.conversion_factor'  => 'nullable|numeric|min:0.000001',
         ]);
 
         if (empty($validated['barcode'])) {
@@ -131,8 +132,9 @@ class ProductController extends Controller
             'variants.*.cost_price'      => 'nullable|numeric|min:0',
             'variants.*.selling_price'   => 'required|numeric|min:0',
             'variants.*.wholesale_price' => 'nullable|numeric|min:0',
-            'variants.*.stock_qty'       => 'nullable|numeric|min:0',
-            'variants.*.alert_qty'       => 'nullable|numeric|min:0',
+            'variants.*.stock_qty'          => 'nullable|numeric|min:0',
+            'variants.*.alert_qty'          => 'nullable|numeric|min:0',
+            'variants.*.conversion_factor'  => 'nullable|numeric|min:0.000001',
         ]);
 
         $variants = $validated['variants'] ?? [];
@@ -223,9 +225,10 @@ class ProductController extends Controller
     {
         $sizes = $product->relationLoaded('variants')
             ? $product->variants->map(fn ($v) => [
-                'id'    => $v->id,
-                'label' => $v->label,
-                'price' => (float) $v->selling_price,
+                'id'                => $v->id,
+                'label'             => $v->label,
+                'price'             => (float) $v->selling_price,
+                'conversion_factor' => (float) ($v->conversion_factor ?? 1),
             ])->values()->all()
             : [];
 

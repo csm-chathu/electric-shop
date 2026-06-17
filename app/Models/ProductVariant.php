@@ -15,14 +15,16 @@ class ProductVariant extends Model
         'wholesale_price',
         'stock_qty',
         'alert_qty',
+        'conversion_factor',
     ];
 
     protected $casts = [
-        'cost_price'      => 'decimal:2',
-        'selling_price'   => 'decimal:2',
-        'wholesale_price' => 'decimal:2',
-        'stock_qty'       => 'decimal:3',
-        'alert_qty'       => 'decimal:3',
+        'cost_price'        => 'decimal:2',
+        'selling_price'     => 'decimal:2',
+        'wholesale_price'   => 'decimal:2',
+        'stock_qty'         => 'decimal:3',
+        'alert_qty'         => 'decimal:3',
+        'conversion_factor' => 'decimal:6',
     ];
 
     public function product()

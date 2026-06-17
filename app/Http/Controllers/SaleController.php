@@ -92,9 +92,10 @@ class SaleController extends Controller
                 'stock_qty'       => (float) $p->stock_qty,
                 'unit'            => $p->unit ?? 'pcs',
                 'sizes'           => $p->variants->map(fn ($v) => [
-                    'id'    => $v->id,
-                    'label' => $v->label,
-                    'price' => (float) $v->selling_price,
+                    'id'                => $v->id,
+                    'label'             => $v->label,
+                    'price'             => (float) $v->selling_price,
+                    'conversion_factor' => (float) ($v->conversion_factor ?? 1),
                 ])->values()->all(),
             ])
             ->values()
@@ -114,9 +115,10 @@ class SaleController extends Controller
                 'stock_qty'       => (float) $p->stock_qty,
                 'unit'            => $p->unit ?? 'pcs',
                 'sizes'           => $p->variants->map(fn ($v) => [
-                    'id'    => $v->id,
-                    'label' => $v->label,
-                    'price' => (float) $v->selling_price,
+                    'id'                => $v->id,
+                    'label'             => $v->label,
+                    'price'             => (float) $v->selling_price,
+                    'conversion_factor' => (float) ($v->conversion_factor ?? 1),
                 ])->values()->all(),
             ])
             ->values()
@@ -199,21 +201,26 @@ class SaleController extends Controller
                 ]);
 
                 if ($variant) {
-                    $stockBefore = $variant->stock_qty;
-                    $variant->decrement('stock_qty', $item['qty']);
-                    $product->decrement('stock_qty', $item['qty']);
-                } else {
+                    // qty sold in variant units; product stock is in base units
+                    $factor          = max((float) ($variant->conversion_factor ?? 1), 0.000001);
+                    $productQtyOut   = $item['qty'] * $factor;
+
                     $stockBefore = $product->stock_qty;
-                    $product->decrement('stock_qty', $item['qty']);
+                    $variant->decrement('stock_qty', $item['qty']);
+                    $product->decrement('stock_qty', $productQtyOut);
+                } else {
+                    $productQtyOut = $item['qty'];
+                    $stockBefore   = $product->stock_qty;
+                    $product->decrement('stock_qty', $productQtyOut);
                 }
 
                 StockMovement::create([
                     'product_id'   => $product->id,
                     'user_id'      => Auth::id(),
                     'type'         => 'out',
-                    'qty'          => $item['qty'],
+                    'qty'          => $productQtyOut,
                     'stock_before' => $stockBefore,
-                    'stock_after'  => $stockBefore - $item['qty'],
+                    'stock_after'  => $stockBefore - $productQtyOut,
                     'reference'    => $sale->invoice_no,
                     'note'         => 'Sale: ' . $sale->invoice_no,
                 ]);
