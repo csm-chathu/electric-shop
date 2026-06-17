@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\License;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class LicenseController extends Controller
@@ -25,9 +24,7 @@ class LicenseController extends Controller
             'notes'         => 'nullable|string|max:500',
         ]);
 
-        $key = strtoupper(implode('-', [
-            Str::random(4), Str::random(4), Str::random(4), Str::random(4),
-        ]));
+        $key = $this->generateKey($request->type);
 
         License::create([
             'key'           => $key,
@@ -36,7 +33,7 @@ class LicenseController extends Controller
             'notes'         => $request->notes,
         ]);
 
-        $label = $request->type === 'trial' ? '14-day trial' : 'paid';
+        $label = $request->type === 'trial' ? '14-day trial' : 'lifetime';
         return back()->with('success', "License key created ({$label}): {$key}");
     }
 
@@ -108,6 +105,49 @@ class LicenseController extends Controller
             'days_remaining'=> $license->fresh()->daysRemaining(),
             'token'         => hash_hmac('sha256', $license->key . $request->mac, config('app.key')),
         ]);
+    }
+
+    // ── Key generation (must match keygen.cjs / electron/main.cjs) ───────────
+    private const CHARS  = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars, no 0/O/I/1
+    private const SECRET = 'lumac-pos-offline-k3y-s3cr3t-2025';
+    private const EPOCH  = '2025-01-01';
+
+    private function generateKey(string $type): string
+    {
+        $typeChar = $type === 'paid' ? 'P' : 'T';
+
+        // Paid: embed today's date so key must be activated today (then works forever)
+        // Trial: no date — activates any time, expires 14 days after first activation
+        $payload = $typeChar === 'P'
+            ? $typeChar . $this->encodeDate(now()) . $this->randomChars(5)  // 1+4+5 = 10
+            : $typeChar . $this->randomChars(9);                             // 1+9   = 10
+
+        $hmac = strtoupper(substr(hash_hmac('sha256', $payload, self::SECRET), 0, 6));
+        $raw  = $payload . $hmac; // 16 chars
+
+        return implode('-', str_split($raw, 4));
+    }
+
+    private function randomChars(int $n): string
+    {
+        $result = '';
+        $bytes  = random_bytes($n);
+        for ($i = 0; $i < $n; $i++) {
+            $result .= self::CHARS[ord($bytes[$i]) % 32];
+        }
+        return $result;
+    }
+
+    private function encodeDate(\Illuminate\Support\Carbon $date): string
+    {
+        $epoch     = \Carbon\Carbon::parse(self::EPOCH)->startOfDay();
+        $days      = (int) $epoch->diffInDays($date->copy()->startOfDay());
+        $encoded   = '';
+        for ($i = 0; $i < 4; $i++) {
+            $encoded = self::CHARS[$days % 32] . $encoded;
+            $days    = intdiv($days, 32);
+        }
+        return $encoded;
     }
 
     // ── API: called by Electron on every launch ────────────────────────────────
