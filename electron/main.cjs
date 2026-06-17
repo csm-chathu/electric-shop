@@ -474,28 +474,41 @@ ipcMain.handle('print-receipt', async (event, printerName, options = {}) => {
   // Convert px → microns (96 dpi screen → 25 400 microns per inch)
   const heightMicrons = Math.ceil(heightPx * 25400 / 96) + 8000; // +8 mm buffer
 
-  // 2. Inject CSS: white background, hide everything except the receipt card
+  // 2. Inject CSS: strip layout chrome and zero ancestor padding so receipt starts at top
   const cssKey = await wc.insertCSS(`
     @media print {
       html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 80mm !important;
         background: #fff !important;
-        background-color: #fff !important;
       }
-      body * { visibility: hidden !important; background: transparent !important; }
-      #receipt-card,    #receipt-card    *,
-      #thermal-receipt, #thermal-receipt * { visibility: visible !important; }
+      header, aside, nav, .no-print {
+        display: none !important;
+      }
+      body > div,
+      body > div > div,
+      body > div > div > main {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 80mm !important;
+      }
+      #receipt-wrapper {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
       #receipt-card, #thermal-receipt {
-        position:         fixed       !important;
-        top:              0           !important;
-        left:             0           !important;
+        display:          block       !important;
         width:            80mm        !important;
+        max-width:        80mm        !important;
+        padding:          4mm 5mm     !important;
+        margin:           0           !important;
         border:           none        !important;
         box-shadow:       none        !important;
         border-radius:    0           !important;
-        padding:          4mm 5mm     !important;
-        margin:           0           !important;
         background:       #fff        !important;
-        background-color: #fff        !important;
         color:            #000        !important;
       }
     }

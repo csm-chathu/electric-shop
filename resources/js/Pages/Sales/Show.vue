@@ -280,37 +280,38 @@ onMounted(async () => {
         margin: 0;
     }
 
-    /* Hide entire page, then reveal only the receipt */
+    /* Zero page shell */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
         width: 80mm !important;
+        background: #fff !important;
     }
 
-    body * {
-        visibility: hidden !important;
+    /* Completely remove layout chrome — display:none takes them out of flow */
+    header, aside, nav, .no-print {
+        display: none !important;
     }
 
-    #receipt-wrapper,
-    #receipt-card,
-    #receipt-card * {
-        visibility: visible !important;
-    }
-
-    /* Pin wrapper to top-left, no gaps */
-    #receipt-wrapper {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 80mm !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    /* Strip all padding/margin from the ancestor chain so receipt reaches top */
+    body > div,
+    body > div > div,
+    body > div > div > main {
         display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 80mm !important;
     }
 
-    /* Receipt card fills exactly 80mm */
+    #receipt-wrapper {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Receipt card: exact 80mm, no decorations */
     #receipt-card {
-        position: static !important;
+        display: block !important;
         width: 80mm !important;
         max-width: 80mm !important;
         padding: 4mm 5mm !important;
@@ -318,6 +319,8 @@ onMounted(async () => {
         border: none !important;
         box-shadow: none !important;
         border-radius: 0 !important;
+        background: #fff !important;
+        color: #000 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }

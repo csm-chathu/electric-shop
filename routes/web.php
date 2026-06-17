@@ -43,7 +43,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/sales/hold', [SaleController::class, 'holdBill'])->name('sales.hold');
     Route::get('/sales/held', [SaleController::class, 'getHeldBills'])->name('sales.held');
     Route::get('/api/products/search', [ProductController::class, 'search'])->name('products.search');
-    Route::get('/api/products/all',    [ProductController::class, 'all'])->name('products.all');
+    Route::get('/api/products/all',     [ProductController::class, 'all'])->name('products.all');
+    Route::get('/api/products/version', [ProductController::class, 'version'])->name('products.version');
 
     // Purchases / GRN
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show']);

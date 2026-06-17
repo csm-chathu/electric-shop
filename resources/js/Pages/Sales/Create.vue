@@ -580,28 +580,38 @@ function refocusSearch() {
     nextTick(() => searchInput.value?.focus());
 }
 
-const CACHE_KEY = 'pos_products_v1';
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_KEY     = 'pos_products_v2';
+const CACHE_VER_KEY = 'pos_products_ver';
 
 async function loadAllProducts() {
+    // 1. Fetch current server version (tiny request — just a timestamp)
+    let serverVersion = null;
     try {
-        const raw = localStorage.getItem(CACHE_KEY);
-        if (raw) {
-            const { ts, data } = JSON.parse(raw);
-            if (Date.now() - ts < CACHE_TTL) {
-                allProducts.value  = data;
+        const verRes  = await axios.get('/api/products/version');
+        serverVersion = verRes.data.version;
+    } catch {}
+
+    // 2. If cache exists and version matches, use it immediately
+    if (serverVersion) {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw && localStorage.getItem(CACHE_VER_KEY) === serverVersion) {
+                allProducts.value   = JSON.parse(raw);
                 productsReady.value = true;
                 return;
             }
-        }
-    } catch {}
+        } catch {}
+    }
+
+    // 3. Cache is stale or missing — fetch fresh product list
     try {
         const res = await axios.get('/api/products/all');
         allProducts.value   = res.data;
         productsReady.value = true;
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: res.data }));
+        localStorage.setItem(CACHE_KEY,     JSON.stringify(res.data));
+        localStorage.setItem(CACHE_VER_KEY, serverVersion ?? '');
     } catch {
-        productsReady.value = true; // fail open — search just returns no results
+        productsReady.value = true;
     }
 }
 

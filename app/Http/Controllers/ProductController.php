@@ -204,6 +204,21 @@ class ProductController extends Controller
         return response()->json($products->map(fn ($p) => $this->productToSearchItem($p))->values());
     }
 
+    /**
+     * Return a lightweight version stamp so the POS can detect changes
+     * without re-downloading the full product list every time.
+     */
+    public function version()
+    {
+        $productVer = Product::where('active', true)->max('updated_at');
+        $variantVer = \App\Models\ProductVariant::whereHas(
+            'product', fn ($q) => $q->where('active', true)
+        )->max('updated_at');
+
+        $version = max((string) $productVer, (string) $variantVer);
+        return response()->json(['version' => $version]);
+    }
+
     private function productToSearchItem(Product $product): array
     {
         $sizes = $product->relationLoaded('variants')
