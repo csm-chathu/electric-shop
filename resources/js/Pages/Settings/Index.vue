@@ -31,25 +31,17 @@ const props = defineProps({
 });
 
 // Printer (Electron only)
-const isElectron    = isElectronRuntime();
-const electronAPI   = window.electronAPI ?? null;
-const printers      = ref([]);
-const selectedPrinter = ref(localStorage.getItem('pos_printer') || '');
+const isElectron  = isElectronRuntime();
+const electronAPI = window.electronAPI ?? null;
+const printers    = ref([]);
 
 async function loadPrinters() {
     if (!isElectron) return;
     printers.value = await getPrinters();
-    if (!selectedPrinter.value) {
+    if (!form.settings.printer_name) {
         const def = printers.value.find(p => p.isDefault);
-        if (def) selectedPrinter.value = def.name;
+        if (def) form.settings.printer_name = def.name;
     }
-}
-
-function savePrinter() {
-    localStorage.setItem('pos_printer', selectedPrinter.value);
-    toast.value = { type: 'success', message: 'Printer saved' };
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.value = null; }, 2000);
 }
 
 // Sync DB settings to composables on mount
@@ -79,6 +71,7 @@ const form = useForm({
         barcode_show_price: props.settings.barcode_show_price === '1' || props.settings.barcode_show_price === true || props.settings.barcode_show_price === undefined,
         logo:           props.settings.logo || '',
         demo_mode:      props.settings.demo_mode === '1' || props.settings.demo_mode === true,
+        printer_name:   props.settings.printer_name || '',
     },
 });
 
@@ -473,7 +466,7 @@ async function runMigrations() {
                 <h3 class="text-sm font-semibold mb-3" style="color:#334155;">🖨 Receipt Printer</h3>
                 <div class="flex items-center gap-3">
                     <select
-                        v-model="selectedPrinter"
+                        v-model="form.settings.printer_name"
                         class="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
                         style="border:1px solid #E2E8F0; color:#0F172A;"
                     >
@@ -484,20 +477,14 @@ async function runMigrations() {
                     </select>
                     <button
                         type="button"
-                        @click="savePrinter"
-                        class="px-4 py-2 rounded-lg text-white text-sm font-semibold"
-                        style="background-color:#2563EB;"
-                    >Save Printer</button>
-                    <button
-                        type="button"
                         @click="loadPrinters"
                         class="px-3 py-2 rounded-lg text-sm font-semibold"
                         style="background:#E2E8F0; color:#475569;"
                         title="Refresh printer list"
                     >↺</button>
                 </div>
-                <p v-if="selectedPrinter" class="mt-2 text-xs" style="color:#64748B;">
-                    Selected: <strong>{{ selectedPrinter }}</strong>
+                <p v-if="form.settings.printer_name" class="mt-2 text-xs" style="color:#64748B;">
+                    Selected: <strong>{{ form.settings.printer_name }}</strong>
                 </p>
             </div>
 

@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { Link } from '@inertiajs/vue3';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElec
 
 async function printReceipt() {
     if (isElectron) {
-        const printer = localStorage.getItem('pos_printer') || '';
+        const printer = localStorage.getItem('pos_printer') || usePage().props.appSettings?.printer_name || '';
         const result  = await window.electronAPI.printReceipt(printer);
         if (!result?.success) window.print();
     } else {

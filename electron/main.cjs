@@ -8,11 +8,8 @@ const APP_PORT = 8000;
 const APP_URL  = `http://127.0.0.1:${APP_PORT}`;
 
 // Live URL: --live-url=https://... arg, or LIVE_URL env var, or empty (use local PHP)
-const LIVE_URL = (
-  process.argv.find(a => a.startsWith('--live-url='))?.slice('--live-url='.length) ||
-  process.env.LIVE_URL ||
-  ''
-).trim();
+// const LIVE_URL = 'https://pos.lumac.lk';
+const LIVE_URL = '';
 
 // ── Paths ──────────────────────────────────────────────────────────────────────
 const IS_PACKAGED   = app.isPackaged;
@@ -253,19 +250,23 @@ ipcMain.handle('get-printers', async (event) => {
 // ─── IPC: silent print ────────────────────────────────────────────────────────
 ipcMain.handle('print-receipt', async (event, printerName, options = {}) => {
   const wc = event.sender;
-  const result = await new Promise((resolve) => {
-    wc.print({
+  console.log('[print-receipt] printer:', printerName || '(default)');
+  try {
+    const p = wc.print({
       silent:          true,
       printBackground: false,
       deviceName:      printerName || '',
       margins:         { marginType: 'printableArea' },
       copies:          1,
       ...options,
-    }, (success, failureReason) => resolve({ success, failureReason }));
-  });
-  if (result.success) return { success: true };
-  console.error('[print-receipt] failed:', result.failureReason);
-  return { success: false, error: result.failureReason };
+    });
+    if (p && typeof p.then === 'function') await p;
+    console.log('[print-receipt] sent to printer');
+    return { success: true };
+  } catch (err) {
+    console.error('[print-receipt] failed:', err.message);
+    return { success: false, error: err.message };
+  }
 });
 
 // ─── IPC: barcode label print ─────────────────────────────────────────────────

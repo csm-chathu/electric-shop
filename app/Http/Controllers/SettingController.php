@@ -43,6 +43,7 @@ class SettingController extends Controller
             'settings.barcode_show_price' => 'nullable',
             'settings.logo'               => 'nullable|string',
             'settings.demo_mode'          => 'nullable',
+            'settings.printer_name'       => 'nullable|string|max:255',
         ]);
 
         Log::info('[Settings] validation passed, saving…');

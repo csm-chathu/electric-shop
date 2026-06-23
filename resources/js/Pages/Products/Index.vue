@@ -110,7 +110,8 @@ async function doPrint() {
     renderBarcode(printBarcodeSvg.value);
     await nextTick();
     if (window.electronAPI?.printBarcode) {
-        const printer = localStorage.getItem('pos_printer') || '';
+        const printer = localStorage.getItem('pos_printer') || usePage().props.appSettings?.printer_name || '';
+        console.log('[Barcode Print] printer:', printer || '(default)');
         await window.electronAPI.printBarcode(printer);
     } else {
         window.print();

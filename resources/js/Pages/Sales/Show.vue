@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { router } from '@inertiajs/vue3';
 import { ref, computed, inject, onMounted } from 'vue';
 
@@ -57,9 +57,9 @@ async function printReceipt() {
     printing.value = true;
     try {
         if (isElectron) {
-            const printer = localStorage.getItem('pos_printer') || '';
-            const result  = await window.electronAPI.printReceipt(printer);
-            if (!result?.success) window.print();
+            const printer = localStorage.getItem('pos_printer') || usePage().props.appSettings?.printer_name || '';
+            console.log('[Receipt Print] printer:', printer || '(default)');
+            await window.electronAPI.printReceipt(printer);
         } else {
             window.print();
         }
