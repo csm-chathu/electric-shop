@@ -13,9 +13,10 @@ const props = defineProps({
 
 const t = inject('t');
 
-const search = ref(props.filters?.search || '');
+const search    = ref(props.filters?.search     || '');
 const categoryId = ref(props.filters?.category_id || '');
-const loading = ref(false);
+const lowStock  = ref(props.filters?.low_stock === '1' || props.filters?.low_stock === true);
+const loading   = ref(false);
 
 let removeStart, removeFinish;
 onMounted(() => {
@@ -29,12 +30,13 @@ onUnmounted(() => {
 
 let searchTimer = null;
 
-watch([search, categoryId], () => {
+watch([search, categoryId, lowStock], () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
         router.get(route('products.index'), {
-            search: search.value,
+            search:      search.value,
             category_id: categoryId.value,
+            low_stock:   lowStock.value ? '1' : '',
         }, { preserveState: true, replace: true });
     }, 400);
 });
@@ -148,6 +150,19 @@ async function doPrint() {
                 <option value="">{{ t('lbl.all') }}</option>
                 <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
+            <button
+                type="button"
+                @click="lowStock = !lowStock"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border min-h-[44px] whitespace-nowrap transition-colors"
+                :class="lowStock
+                    ? 'bg-red-50 border-red-400 text-red-700'
+                    : 'bg-white border-gray-300 text-gray-600 hover:border-red-400 hover:text-red-600'"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                Low Stock
+            </button>
             <Link
                 :href="route('products.create')"
                 class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] whitespace-nowrap"

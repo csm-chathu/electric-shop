@@ -19,6 +19,7 @@ class ProductController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('name_si', 'like', "%{$search}%")
                   ->orWhere('barcode', 'like', "%{$search}%");
             });
         }
@@ -27,13 +28,17 @@ class ProductController extends Controller
             $query->where('category_id', $request->category_id);
         }
 
+        if ($request->boolean('low_stock')) {
+            $query->whereColumn('stock_qty', '<=', 'alert_qty');
+        }
+
         $products   = $query->latest()->paginate(20)->withQueryString();
         $categories = Category::orderBy('name')->get();
 
         return Inertia::render('Products/Index', [
             'products'   => $products,
             'categories' => $categories,
-            'filters'    => $request->only(['search', 'category_id']),
+            'filters'    => $request->only(['search', 'category_id', 'low_stock']),
         ])->with(['flash' => session('flash')]);
     }
 
