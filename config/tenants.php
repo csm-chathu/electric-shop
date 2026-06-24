@@ -24,12 +24,12 @@ return [
         'password' => 'K!ngd0m@!t0ne',
     ],
     'asitha-pos.lumac.lk' => [
-        'database' => 'lmucunal_mailagas_pos',
+        'database' => 'lmucunal_asitha_pos',
         'username' => 'lmucunal_mysql',
         'password' => 'K!ngd0m@!t0ne',
     ],
     'pos.lumac.lk' => [
-        'database' => 'lmucunal_sinhala_pos',
+        'database' => 'lmucunal_senewirathna',
         'username' => 'lmucunal_mysql',
         'password' => 'K!ngd0m@!t0ne',
     ],
