@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\ProductImportController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -28,6 +29,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Products & Categories
     Route::resource('products', ProductController::class);
+    Route::get('/products-import/sample', [ProductImportController::class, 'sample'])->name('products.import.sample');
+    Route::post('/products-import',       [ProductImportController::class, 'import'])->name('products.import');
     Route::resource('categories', CategoryController::class);
 
     // Suppliers & Customers

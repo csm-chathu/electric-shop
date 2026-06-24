@@ -18,6 +18,27 @@ const categoryId = ref(props.filters?.category_id || '');
 const lowStock  = ref(props.filters?.low_stock === '1' || props.filters?.low_stock === true);
 const loading   = ref(false);
 
+// ── CSV Import ────────────────────────────────────────────────────────────────
+const importInput    = ref(null);
+const importBusy     = ref(false);
+
+function triggerImport() { importInput.value?.click(); }
+
+function onImportFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    importBusy.value = true;
+    const form = new FormData();
+    form.append('file', file);
+    router.post(route('products.import'), form, {
+        forceFormData: true,
+        onFinish: () => {
+            importBusy.value = false;
+            e.target.value = '';
+        },
+    });
+}
+
 let removeStart, removeFinish;
 onMounted(() => {
     removeStart = router.on('start', () => { loading.value = true; });
@@ -163,6 +184,29 @@ async function doPrint() {
                 </svg>
                 Low Stock
             </button>
+            <!-- Import CSV -->
+            <input ref="importInput" type="file" accept=".csv,.txt" class="hidden" @change="onImportFile" />
+            <button
+                type="button"
+                @click="triggerImport"
+                :disabled="importBusy"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border min-h-[44px] whitespace-nowrap transition-colors bg-white border-gray-300 text-gray-600 hover:border-green-500 hover:text-green-700"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                {{ importBusy ? 'Importing…' : 'Import CSV' }}
+            </button>
+            <a
+                :href="route('products.import.sample')"
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border min-h-[44px] whitespace-nowrap transition-colors bg-white border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Sample CSV
+            </a>
+
             <Link
                 :href="route('products.create')"
                 class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors min-h-[44px] whitespace-nowrap"

@@ -1,15 +1,29 @@
 const { app, BrowserWindow, shell, Menu, ipcMain, globalShortcut, dialog } = require('electron');
-const { spawn, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
-const http = require('http');
 const fs   = require('fs');
 
-const APP_PORT = 8000;
-const APP_URL  = `http://127.0.0.1:${APP_PORT}`;
+// ── Persisted live URL (must be called after app ready) ──────────────────────
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'lumac-pos-url.json');
+}
 
-// Live URL: --live-url=https://... arg, or LIVE_URL env var, or empty (use local PHP)
-// const LIVE_URL = 'https://pos.lumac.lk';
-const LIVE_URL = 'https://mailagas.lumac.lk/';
+function loadLiveUrl() {
+  try {
+    const data = JSON.parse(fs.readFileSync(getConfigPath(), 'utf8'));
+    return (data.liveUrl || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function saveLiveUrl(url) {
+  const dir = app.getPath('userData');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(getConfigPath(), JSON.stringify({ liveUrl: url }), 'utf8');
+}
+
+let LIVE_URL = '';
 
 // ── Paths ──────────────────────────────────────────────────────────────────────
 const IS_PACKAGED   = app.isPackaged;
@@ -18,90 +32,6 @@ const PROJECT_DIR   = IS_PACKAGED ? path.join(RESOURCES_DIR, 'app') : path.join(
 const PHP_EXE       = path.join(RESOURCES_DIR, 'resources', 'php-8.1.33', 'php.exe');
 
 let mainWindow;
-let phpProcess;
-
-// ── Auto-setup .env on first run ───────────────────────────────────────────────
-function ensureEnv() {
-  const envPath    = path.join(PROJECT_DIR, '.env');
-  const envExample = path.join(PROJECT_DIR, '.env.example');
-  if (fs.existsSync(envPath)) return;
-
-  let content = fs.existsSync(envExample)
-    ? fs.readFileSync(envExample, 'utf8')
-    : `APP_NAME="Lumac POS"\nAPP_ENV=production\nAPP_KEY=\nAPP_DEBUG=false\nAPP_URL=http://127.0.0.1:${APP_PORT}\n\nDB_CONNECTION=sqlite\n`;
-
-  content = content.replace(/^DB_CONNECTION=.*/m, 'DB_CONNECTION=sqlite');
-  content = content.replace(/^APP_URL=.*/m, `APP_URL=http://127.0.0.1:${APP_PORT}`);
-  fs.writeFileSync(envPath, content, 'utf8');
-
-  try {
-    execFileSync(PHP_EXE, ['artisan', 'key:generate', '--force'], { cwd: PROJECT_DIR, windowsHide: true });
-  } catch (e) {
-    console.error('[setup] key:generate failed:', e.message);
-  }
-}
-
-// ── Run migrations on every start ─────────────────────────────────────────────
-function runMigrations() {
-  try {
-    execFileSync(PHP_EXE, ['artisan', 'migrate', '--force'], { cwd: PROJECT_DIR, windowsHide: true });
-    console.log('[setup] Migrations OK');
-  } catch (e) {
-    console.error('[setup] migrate failed:', e.message);
-  }
-}
-
-// ── Cache Laravel config/routes/views ─────────────────────────────────────────
-function runLaravelCache() {
-  for (const cmd of ['config:cache', 'route:cache', 'view:cache']) {
-    try {
-      execFileSync(PHP_EXE, ['artisan', cmd], { cwd: PROJECT_DIR, windowsHide: true });
-    } catch (e) {
-      console.error(`[setup] ${cmd} failed:`, e.message);
-    }
-  }
-}
-
-function waitForServer(maxAttempts = 40) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0;
-    const check = () => {
-      attempts++;
-      const req = http.get(APP_URL, () => resolve());
-      req.on('error', () => {
-        if (attempts >= maxAttempts) reject(new Error('PHP server did not start in time'));
-        else setTimeout(check, 1000);
-      });
-      req.setTimeout(800, () => {
-        req.destroy();
-        if (attempts >= maxAttempts) reject(new Error('PHP server timed out'));
-        else setTimeout(check, 500);
-      });
-    };
-    setTimeout(check, 1500);
-  });
-}
-
-function startPhpServer() {
-  phpProcess = spawn(PHP_EXE, ['artisan', 'serve', `--host=127.0.0.1`, `--port=${APP_PORT}`], {
-    cwd:         PROJECT_DIR,
-    shell:       false,
-    windowsHide: true,
-  });
-  phpProcess.stdout.on('data', d => console.log(`[PHP] ${d.toString().trim()}`));
-  phpProcess.stderr.on('data', d => { const m = d.toString().trim(); if (m) console.log(`[PHP] ${m}`); });
-  phpProcess.on('error', err => console.error('Failed to start PHP:', err));
-}
-
-function stopPhpServer() {
-  if (!phpProcess) return;
-  if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', phpProcess.pid, '/f', '/t'], { shell: true });
-  } else {
-    phpProcess.kill('SIGTERM');
-  }
-  phpProcess = null;
-}
 
 function createSplash() {
   const imgPath = IS_PACKAGED
@@ -152,9 +82,17 @@ async function createWindow() {
     icon: path.join(__dirname, '..', 'public', 'lumac-load.jpeg'),
   });
 
+  // No saved URL yet — skip splash, show config dialog immediately
+  if (!LIVE_URL) {
+    if (!splash.isDestroyed()) splash.close();
+    mainWindow.show();
+    mainWindow.focus();
+    openUrlConfigDialog();
+    return;
+  }
+
   try {
-    if (!LIVE_URL) await waitForServer();
-    mainWindow.loadURL(LIVE_URL || APP_URL);
+    mainWindow.loadURL(LIVE_URL);
 
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(() => {
@@ -248,25 +186,45 @@ ipcMain.handle('get-printers', async (event) => {
 });
 
 // ─── IPC: silent print ────────────────────────────────────────────────────────
-ipcMain.handle('print-receipt', async (event, printerName, options = {}) => {
+ipcMain.handle('print-receipt', async (event, printerName) => {
   const wc = event.sender;
   console.log('[print-receipt] printer:', printerName || '(default)');
-  try {
-    const p = wc.print({
-      silent:          true,
-      printBackground: false,
-      deviceName:      printerName || '',
-      margins:         { marginType: 'printableArea' },
-      copies:          1,
-      ...options,
-    });
-    if (p && typeof p.then === 'function') await p;
-    console.log('[print-receipt] sent to printer');
-    return { success: true };
-  } catch (err) {
-    console.error('[print-receipt] failed:', err.message);
-    return { success: false, error: err.message };
-  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (success, reason) => {
+      if (settled) return;
+      settled = true;
+      if (success) {
+        console.log('[print-receipt] success');
+        resolve({ success: true });
+      } else {
+        console.error('[print-receipt] failed:', reason);
+        resolve({ success: false, error: reason });
+      }
+    };
+
+    const result = wc.print(
+      {
+        silent:          true,
+        printBackground: false,
+        deviceName:      printerName || '',
+        margins:         { marginType: 'printableArea' },
+        copies:          1,
+      },
+      (success, failureReason) => done(success, failureReason)
+    );
+
+    // Electron 36+: print() returns a Promise, callback is ignored
+    if (result && typeof result.then === 'function') {
+      result
+        .then(() => done(true))
+        .catch(err => done(false, err.message));
+    }
+
+    // Safety timeout — resolve after 15s if neither fires
+    setTimeout(() => done(false, 'print timeout'), 15000);
+  });
 });
 
 // ─── IPC: barcode label print ─────────────────────────────────────────────────
@@ -359,13 +317,55 @@ ipcMain.handle('db:migrate', () => {
   }
 });
 
-app.whenReady().then(() => {
-  if (!LIVE_URL) {
-    ensureEnv();
-    runMigrations();
-    runLaravelCache();
-    startPhpServer();
+// ─── IPC: URL config dialog ───────────────────────────────────────────────────
+let urlConfigWin = null;
+
+function openUrlConfigDialog() {
+  if (urlConfigWin && !urlConfigWin.isDestroyed()) {
+    urlConfigWin.focus();
+    return;
   }
+
+  urlConfigWin = new BrowserWindow({
+    width:       460,
+    height:      240,
+    parent:      mainWindow || undefined,
+    modal:       !!mainWindow,
+    resizable:   false,
+    minimizable: false,
+    maximizable: false,
+    title:       'Change Live URL',
+    backgroundColor: '#0f172a',
+    webPreferences: {
+      preload:          path.join(__dirname, 'url-config-preload.cjs'),
+      nodeIntegration:  false,
+      contextIsolation: true,
+    },
+  });
+
+  urlConfigWin.setMenu(null);
+  urlConfigWin.loadFile(path.join(__dirname, 'url-config.html'));
+  urlConfigWin.on('closed', () => { urlConfigWin = null; });
+}
+
+ipcMain.on('url-config:get', (event) => {
+  event.returnValue = LIVE_URL;
+});
+
+ipcMain.on('url-config:save', (event, url) => {
+  const trimmed = url.trim().replace(/\/$/, '');
+  saveLiveUrl(trimmed);
+  LIVE_URL = trimmed;
+  if (urlConfigWin && !urlConfigWin.isDestroyed()) urlConfigWin.close();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(LIVE_URL);
+});
+
+ipcMain.on('url-config:cancel', () => {
+  if (urlConfigWin && !urlConfigWin.isDestroyed()) urlConfigWin.close();
+});
+
+app.whenReady().then(() => {
+  LIVE_URL = loadLiveUrl();
 
   createWindow();
 
@@ -375,13 +375,13 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+Shift+I', () => {
     if (mainWindow) mainWindow.webContents.toggleDevTools();
   });
+  globalShortcut.register('CommandOrControl+Shift+Alt+D', () => {
+    openUrlConfigDialog();
+  });
 });
 
 app.on('window-all-closed', () => {
   globalShortcut.unregisterAll();
-  stopPhpServer();
   app.quit();
 });
-
-app.on('before-quit', () => stopPhpServer());
 app.on('activate', () => { if (!mainWindow) createWindow(); });

@@ -451,13 +451,7 @@ function setPriceMode(mode) {
 }
 
 function addToCart(product, initialQty = null) {
-    // Block out-of-stock items
-    if ((product.stock_qty ?? 0) <= 0) {
-        errorMsg.value = t('err.out_of_stock');
-        refocusSearch();
-        return;
-    }
-    // Show size picker if product has sizes defined
+    // Show size picker first — stock lives on variants, not the parent
     if (product.sizes?.length > 0) {
         sizePickerProduct.value = product;
         showSizePicker.value    = true;
@@ -468,6 +462,13 @@ function addToCart(product, initialQty = null) {
         searchResults.value     = [];
         showDropdown.value      = false;
         activeIndex.value       = -1;
+        return;
+    }
+
+    // Block out-of-stock items (variants already handled above)
+    if ((product.stock_qty ?? 0) <= 0) {
+        errorMsg.value = t('err.out_of_stock');
+        refocusSearch();
         return;
     }
 
