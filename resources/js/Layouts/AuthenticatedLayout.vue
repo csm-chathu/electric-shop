@@ -37,7 +37,9 @@ const locale       = inject('locale');
 const toggleLocale = inject('toggleLocale');
 
 // ── Global printer shortcut (Ctrl+Shift+P) ───────────────────────────────────
-const printerToast = ref(null);
+const printerToast   = ref(null);
+const currentPrinter = ref(typeof window !== 'undefined' ? (localStorage.getItem('pos_printer') || '') : '');
+const isElectron     = computed(() => typeof window !== 'undefined' && !!window.electronAPI?.isElectron);
 let printerToastTimer = null;
 
 function showPrinterToast(msg, type = 'success') {
@@ -47,10 +49,11 @@ function showPrinterToast(msg, type = 'success') {
 }
 
 async function openGlobalPrinterPicker() {
-    if (!window.electronAPI?.isElectron) return;
+    if (!isElectron.value) return;
     const result = await window.electronAPI.openPrinterDialog();
     if (result?.name) {
         localStorage.setItem('pos_printer', result.name);
+        currentPrinter.value = result.name;
         showPrinterToast(`🖨 ${result.name}`);
     }
 }
@@ -241,6 +244,22 @@ function reloadApp() {
 
             <!-- User info at bottom -->
             <div class="border-t border-slate-700 p-3 flex-shrink-0">
+                <!-- Printer shortcut badge (Electron only) -->
+                <button
+                    v-if="isElectron"
+                    @click="openGlobalPrinterPicker"
+                    class="w-full mb-2 flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors text-left"
+                    style="background:rgba(255,255,255,0.06); color:#94a3b8;"
+                    :title="'Change printer (Ctrl+Shift+P)'"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <template v-if="!sidebarCollapsed">
+                        <span class="flex-1 text-xs truncate min-w-0">{{ currentPrinter || 'Change printer' }}</span>
+                        <span class="flex-shrink-0 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded" style="background:rgba(255,255,255,0.12); color:#64748b; letter-spacing:0.5px;">⌃⇧P</span>
+                    </template>
+                </button>
                 <!-- Collapse / expand toggle above avatar -->
                 <button
                     @click="toggleCollapse"

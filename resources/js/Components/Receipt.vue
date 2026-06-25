@@ -364,11 +364,12 @@ async function printReceipt() {
         display: none !important;
     }
 
-    /* Show only the receipt wrapper (teleported or direct) */
+    /* Show only the receipt wrapper */
     .receipt-page-wrapper {
-        display: flex !important;
+        display: block !important;
         padding: 0 !important;
         margin: 0 !important;
+        width: 100% !important;
     }
 
     /* Hide action buttons */
@@ -376,19 +377,46 @@ async function printReceipt() {
         display: none !important;
     }
 
-    /* Remove screen border from receipt box */
+    /* Receipt box fills the full printable width */
     .receipt-root {
         border: none !important;
         width: 100% !important;
         max-width: 100% !important;
-        padding: 4px 4px !important;
+        box-sizing: border-box !important;
+        padding: 2mm 2mm 2mm 1mm !important;
         font-size: 11px !important;
+        overflow: hidden !important;
     }
 
-    /* Page setup */
+    /* Prevent table cells from overflowing */
+    .receipt-table {
+        table-layout: fixed !important;
+        width: 100% !important;
+    }
+    .receipt-table td {
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        max-width: 0 !important;
+    }
+    .receipt-label {
+        width: 40% !important;
+    }
+    .receipt-value {
+        width: 60% !important;
+    }
+
+    /* Item name: allow wrap, remove fixed max-width */
+    .receipt-item-name {
+        white-space: normal !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+
+    /* Page setup — 0 margin, padding handled by receipt-root */
     @page {
         size: 80mm auto;
-        margin: 3mm 3mm 3mm 1mm;
+        margin: 0;
     }
 }
 </style>
