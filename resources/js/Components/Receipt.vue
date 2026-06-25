@@ -379,16 +379,16 @@ async function printReceipt() {
     /* Remove screen border from receipt box */
     .receipt-root {
         border: none !important;
-        max-width: 302px !important;
-        width: 302px !important;
-        padding: 4px 6px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 4px 4px !important;
         font-size: 11px !important;
     }
 
     /* Page setup */
     @page {
         size: 80mm auto;
-        margin: 4mm;
+        margin: 3mm 3mm 3mm 1mm;
     }
 }
 </style>

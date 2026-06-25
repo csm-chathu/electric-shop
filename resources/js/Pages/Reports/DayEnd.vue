@@ -244,8 +244,8 @@ async function printReport() {
 
     /* Receipt styles */
     .receipt-root {
-        max-width: 302px;
         width: 100%;
+        max-width: 100%;
         font-family: 'Courier New', Courier, monospace;
         font-size: 11px;
         line-height: 1.45;
@@ -303,7 +303,7 @@ async function printReport() {
 
     @page {
         size: 80mm auto;
-        margin: 4mm;
+        margin: 3mm 3mm 3mm 1mm;
     }
 }
 </style>
