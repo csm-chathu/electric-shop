@@ -290,7 +290,7 @@ async function printReceipt() {
 .receipt-items-header {
     display: flex;
     font-weight: bold;
-    font-size: 10px;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -306,7 +306,7 @@ async function printReceipt() {
     margin: 3px 0;
 }
 .receipt-item-name {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: bold;
     white-space: nowrap;
     overflow: hidden;
@@ -315,7 +315,7 @@ async function printReceipt() {
 }
 .receipt-item-row {
     display: flex;
-    font-size: 11px;
+    font-size: 13px;
 }
 .receipt-discount {
     font-size: 10px;
