@@ -19,6 +19,8 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+Route::get('/ping', fn() => response('ok', 200));
+
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
