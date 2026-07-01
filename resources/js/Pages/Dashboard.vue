@@ -97,7 +97,7 @@ const statCards = [
             <component
                 v-for="card in statCards"
                 :key="card.valueKey"
-                :is="card.href ? 'a' : 'div'"
+                :is="card.href ? Link : 'div'"
                 :href="card.href || undefined"
                 class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
                 :class="card.href ? 'cursor-pointer hover:shadow-md transition-shadow' : ''"

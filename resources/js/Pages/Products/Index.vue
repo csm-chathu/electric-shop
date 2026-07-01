@@ -13,13 +13,25 @@ const props = defineProps({
 
 const t = inject('t');
 
-const FILTER_KEY = 'products_filters';
+const SESSION_KEY = 'products_state';
 
-function loadSavedFilters() {
-    try { return JSON.parse(localStorage.getItem(FILTER_KEY) || '{}'); } catch { return {}; }
+function loadSession() {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || '{}'); } catch { return {}; }
 }
 
-const saved = loadSavedFilters();
+function saveSession(extra = {}) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+        search:      search.value,
+        category_id: categoryId.value,
+        low_stock:   lowStock.value,
+        page:        props.products?.meta?.current_page || 1,
+        ...extra,
+    }));
+}
+
+// URL params take priority over session (e.g. dashboard low-stock link)
+const urlHasFilters = !!(props.filters?.search || props.filters?.category_id || props.filters?.low_stock);
+const saved = urlHasFilters ? {} : loadSession();
 
 const search     = ref(props.filters?.search      || saved.search      || '');
 const categoryId = ref(props.filters?.category_id || saved.category_id || '');
@@ -27,7 +39,7 @@ const lowStock   = ref(
     props.filters?.low_stock === '1' || props.filters?.low_stock === true ||
     saved.low_stock === true
 );
-const loading    = ref(false);
+const loading = ref(false);
 
 // ── CSV Import ────────────────────────────────────────────────────────────────
 const importInput    = ref(null);
@@ -54,6 +66,16 @@ let removeStart, removeFinish;
 onMounted(() => {
     removeStart = router.on('start', () => { loading.value = true; });
     removeFinish = router.on('finish', () => { loading.value = false; });
+
+    const targetPage = saved.page || 1;
+    if (targetPage > 1) {
+        router.get(route('products.index'), {
+            search:      search.value,
+            category_id: categoryId.value,
+            low_stock:   lowStock.value ? '1' : '',
+            page:        targetPage,
+        }, { preserveState: true, replace: true });
+    }
 });
 onUnmounted(() => {
     removeStart?.();
@@ -61,22 +83,43 @@ onUnmounted(() => {
 });
 
 let searchTimer = null;
+let pageBeforeSearch = null;
+
+watch(search, (newVal, oldVal) => {
+    if (!oldVal && newVal) {
+        // Search just started — remember which page we were on
+        pageBeforeSearch = props.products?.meta?.current_page || saved.page || 1;
+    }
+});
 
 watch([search, categoryId, lowStock], () => {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({
-        search:      search.value,
-        category_id: categoryId.value,
-        low_stock:   lowStock.value,
-    }));
+    const isClearing = !search.value && !categoryId.value && !lowStock.value;
+    const restorePage = isClearing && pageBeforeSearch ? pageBeforeSearch : 1;
+    if (isClearing) pageBeforeSearch = null;
+
+    saveSession({ page: restorePage });
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
         router.get(route('products.index'), {
             search:      search.value,
             category_id: categoryId.value,
             low_stock:   lowStock.value ? '1' : '',
+            ...(restorePage > 1 ? { page: restorePage } : {}),
         }, { preserveState: true, replace: true });
     }, 400);
 });
+
+function goToPage(link) {
+    if (!link.url || link.active) return;
+    const page = parseInt(new URL(link.url).searchParams.get('page') || '1', 10);
+    saveSession({ page });
+    router.get(route('products.index'), {
+        search:      search.value,
+        category_id: categoryId.value,
+        low_stock:   lowStock.value ? '1' : '',
+        page,
+    }, { preserveState: true, replace: true });
+}
 
 function formatCurrency(value) {
     return 'Rs. ' + Number(value).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -356,7 +399,7 @@ async function doPrint() {
 
         <!-- Desktop table -->
         <div class="hidden md:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
-            <div class="overflow-x-auto">
+<div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
@@ -472,12 +515,13 @@ async function doPrint() {
         <!-- Pagination -->
         <div v-if="products.links?.length > 3" class="flex flex-wrap justify-center gap-1">
             <template v-for="link in products.links" :key="link.label">
-                <Link
+                <button
                     v-if="link.url"
-                    :href="link.url"
+                    type="button"
+                    @click="goToPage(link)"
                     class="px-3 py-2 text-sm rounded-lg border transition-colors min-h-[44px] flex items-center"
                     :class="link.active
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-blue-600 text-white border-blue-600 cursor-default'
                         : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'"
                     v-html="link.label"
                 />
