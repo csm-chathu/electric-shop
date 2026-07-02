@@ -176,3 +176,8 @@
         line-height: 1.1;
     }
 }
+
+/* Global print reset — prevents Electron from dithering the slate background into dots on thermal printers */
+@media print {
+    html, body { background: #fff !important; }
+}

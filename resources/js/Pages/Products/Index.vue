@@ -207,13 +207,11 @@ async function doPrint() {
     await nextTick();
     document.documentElement.classList.add('barcode-printing');
     try {
-        const printer = localStorage.getItem('pos_printer') || usePage().props.appSettings?.printer_name || '';
-        for (let i = 0; i < barcodeQty.value; i++) {
-            if (window.electronAPI?.printReceipt) {
-                await window.electronAPI.printReceipt(printer);
-            } else {
-                window.print();
-            }
+        if (window.electronAPI?.printBarcode) {
+            const printer = localStorage.getItem('pos_printer') || usePage().props.appSettings?.printer_name || '';
+            await window.electronAPI.printBarcode(printer);
+        } else {
+            window.print();
         }
     } finally {
         document.documentElement.classList.remove('barcode-printing');
@@ -616,11 +614,13 @@ async function doPrint() {
         <!-- Hidden print-only area (rendered when printing) -->
         <div v-if="printing" id="barcode-print-area"
             :style="`--lw:${currentSize.w};--lh:${currentSize.h}`">
-            <div class="bc-label-page">
-                <p class="bc-print-name">{{ barcodeProduct?.name }}</p>
-                <svg ref="printBarcodeSvg"></svg>
-                <p v-if="showPrice" class="bc-print-price">Rs. {{ Number(barcodeProduct?.selling_price || 0).toFixed(2) }}</p>
-            </div>
+            <template v-for="n in barcodeQty" :key="n">
+                <div class="bc-label-page">
+                    <p class="bc-print-name">{{ barcodeProduct?.name }}</p>
+                    <svg ref="printBarcodeSvg"></svg>
+                    <p v-if="showPrice" class="bc-print-price">Rs. {{ Number(barcodeProduct?.selling_price || 0).toFixed(2) }}</p>
+                </div>
+            </template>
         </div>
     </Teleport>
 </template>
@@ -729,14 +729,14 @@ async function doPrint() {
 @media print {
     html:not(.barcode-printing) #barcode-print-area { display: none !important; }
 
+    html.barcode-printing,
+    html.barcode-printing body { background: #fff !important; }
     html.barcode-printing body > * { display: none !important; }
-    html.barcode-printing #barcode-print-area { display: block !important; }
-
-    @page { size: 30mm 20mm; margin: 0; }
+    html.barcode-printing #barcode-print-area { display: block !important; background: #fff !important; }
 
     html.barcode-printing .bc-label-page {
-        width: 30mm;
-        height: 20mm;
+        width: var(--lw, 40mm);
+        height: var(--lh, 25mm);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -750,8 +750,7 @@ async function doPrint() {
     }
     html.barcode-printing .bc-label-page svg {
         display: block;
-        width: auto !important;
-        max-width: 100% !important;
+        max-width: calc(var(--lw, 40mm) - 4mm) !important;
         height: auto !important;
     }
     html.barcode-printing .bc-print-name {
