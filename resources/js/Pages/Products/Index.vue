@@ -673,7 +673,7 @@ async function doPrint() {
 .barcode-label-preview svg { max-width: 100%; height: auto; }
 .bc-name { font-size: 12pt; font-weight: 700; text-align: center; color: #111; line-height: 1.2; }
 .bc-name-si { font-size: 7pt; font-weight: 600; text-align: center; color: #374151; }
-.bc-price { font-size: 10pt; font-weight: 800; color: #16a34a; text-align: left; padding-left: 3px; margin-top: 4px; margin-left: 4px; }
+.bc-price { font-size: 10pt; font-weight: 800; color: #16a34a; text-align: left; padding-left: 3px; margin-top: 2px; margin-left: 4px; }
 
 /* ── Options ── */
 .barcode-options { display: flex; flex-direction: column; gap: 1rem; }
@@ -762,7 +762,7 @@ async function doPrint() {
     }
     html.barcode-printing .bc-print-price {
         font-size: 10pt; font-weight: 800;
-        text-align: left; padding-left: 3px; margin-top: 4px; margin-left: 4px;
+        text-align: left; padding-left: 3px; margin-top: 2px; margin-left: 4px;
     }
 }
 </style>
