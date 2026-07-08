@@ -54,11 +54,9 @@ class PurchaseController extends Controller
     public function create()
     {
         $suppliers = Supplier::where('active', true)->orderBy('name')->get();
-        $products  = Product::with('category')->where('active', true)->orderBy('name')->get();
 
         return Inertia::render('Purchases/Create', [
             'suppliers' => $suppliers,
-            'products'  => $products,
         ])->with(['flash' => session('flash')]);
     }
 
@@ -165,12 +163,10 @@ class PurchaseController extends Controller
     {
         $purchase  = Purchase::with('items.product')->findOrFail($id);
         $suppliers = Supplier::where('active', true)->orderBy('name')->get();
-        $products  = Product::with('category')->where('active', true)->orderBy('name')->get();
 
         return Inertia::render('Purchases/Edit', [
             'purchase'  => $purchase,
             'suppliers' => $suppliers,
-            'products'  => $products,
         ])->with(['flash' => session('flash')]);
     }
 

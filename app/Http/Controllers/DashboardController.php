@@ -16,8 +16,8 @@ class DashboardController extends Controller
         $today = Carbon::today()->toDateString();
         $hour  = now()->hour;
 
-        // Single cache key for the whole dashboard — busted hourly
-        $cacheKey = 'dashboard_' . $today . '_h' . $hour;
+        $tenant   = config('database.connections.mysql.database');
+        $cacheKey = $tenant . '_dashboard_' . $today . '_h' . $hour;
 
         $data = Cache::remember($cacheKey, 3600, function () use ($today) {
             $monthStart = Carbon::now()->startOfMonth()->startOfDay();

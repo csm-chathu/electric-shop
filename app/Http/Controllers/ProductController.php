@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -129,6 +130,8 @@ class ProductController extends Controller
             $product->variants()->create($v);
         }
 
+        Cache::forget($this->tenantKey('api_products_all'));
+
         // Return JSON for quick-create AJAX calls from purchase form
         if ($request->boolean('quick_create')) {
             return response()->json([
@@ -232,6 +235,8 @@ class ProductController extends Controller
 
         $product->update($validated);
 
+        Cache::forget($this->tenantKey('api_products_all'));
+
         // Sync variants: upsert existing, delete removed
         $keptIds = [];
         foreach ($variants as $v) {
@@ -251,6 +256,7 @@ class ProductController extends Controller
     public function destroy(string $id)
     {
         Product::findOrFail($id)->delete();
+        Cache::forget($this->tenantKey('api_products_all'));
         return redirect()->route('products.index')->with('success', 'Product deleted successfully.');
     }
 
@@ -292,8 +298,11 @@ class ProductController extends Controller
      */
     public function all()
     {
-        $products = Product::where('active', true)->with('variants')->get();
-        return response()->json($products->map(fn ($p) => $this->productToSearchItem($p))->values());
+        $products = Cache::remember($this->tenantKey('api_products_all'), 300, function () {
+            return Product::where('active', true)->with('variants')->get()
+                ->map(fn ($p) => $this->productToSearchItem($p))->values();
+        });
+        return response()->json($products);
     }
 
     /**
@@ -309,6 +318,11 @@ class ProductController extends Controller
 
         $version = max((string) $productVer, (string) $variantVer);
         return response()->json(['version' => $version]);
+    }
+
+    private function tenantKey(string $key): string
+    {
+        return config('database.connections.mysql.database') . '_' . $key;
     }
 
     private function productToSearchItem(Product $product): array

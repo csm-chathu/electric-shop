@@ -1,21 +1,23 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, ref, inject, nextTick, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
-import { invalidateProducts } from '@/stores/productCache';
+import { getProducts, invalidateProducts } from '@/stores/productCache';
 
 const t = inject('t');
 
 const props = defineProps({
     suppliers: { type: Array, default: () => [] },
-    products: { type: Array, default: () => [] },
 });
 
-// Extra products created via quick-add modal during this session
+const allProducts = ref([]);
 const quickAddedProducts = ref([]);
-// Computed so adding to quickAddedProducts always invalidates filteredProducts/getSelectedProduct
-const localProducts = computed(() => [...props.products, ...quickAddedProducts.value]);
+const localProducts = computed(() => [...allProducts.value, ...quickAddedProducts.value]);
+
+onMounted(async () => {
+    allProducts.value = await getProducts();
+});
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -94,8 +96,6 @@ async function saveNewProduct() {
         const searchId = `search-${rowIndex}`;
         const searchEl = document.getElementById(searchId);
         if (searchEl) { searchEl.focus(); searchEl.select(); }
-        // Reload products prop in background
-        router.reload({ only: ['products'], preserveState: true, preserveScroll: true });
     } catch (err) {
         const errors = err.response?.data?.errors;
         if (errors) {

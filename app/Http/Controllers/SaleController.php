@@ -12,6 +12,7 @@ use App\Models\StockMovement;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -65,64 +66,56 @@ class SaleController extends Controller
     {
         $customers = Customer::where('active', true)->orderBy('name')->get();
 
-        // Top 24 popular products by sales qty; fall back to newest if no sales yet
-        $popularIds = SaleItem::select('product_id', DB::raw('SUM(qty) as total_sold'))
-            ->groupBy('product_id')
-            ->orderByDesc('total_sold')
-            ->limit(24)
-            ->pluck('product_id');
+        $mapProduct = fn ($p) => [
+            'id'              => $p->id,
+            'name'            => $p->name,
+            'name_si'         => $p->name_si,
+            'barcode'         => $p->barcode,
+            'selling_price'   => (float) $p->selling_price,
+            'wholesale_price' => (float) $p->wholesale_price,
+            'stock_qty'       => (float) $p->stock_qty,
+            'unit'            => $p->unit ?? 'pcs',
+            'sizes'           => $p->variants->map(fn ($v) => [
+                'id'                => $v->id,
+                'label'             => $v->label,
+                'price'             => (float) $v->selling_price,
+                'conversion_factor' => (float) ($v->conversion_factor ?? 1),
+            ])->values()->all(),
+        ];
 
-        $popularProducts = Product::where('active', true)
-            ->where('stock_qty', '>', 0)
-            ->when($popularIds->isNotEmpty(), fn ($q) => $q->whereIn('id', $popularIds))
-            ->when($popularIds->isEmpty(),    fn ($q) => $q->orderByDesc('created_at'))
-            ->limit(24)
-            ->with('variants')
-            ->get()
-            ->when($popularIds->isNotEmpty(), fn ($col) => $col->sortBy(
-                fn ($p) => $popularIds->search($p->id)
-            ))
-            ->map(fn ($p) => [
-                'id'              => $p->id,
-                'name'            => $p->name,
-                'name_si'         => $p->name_si,
-                'barcode'         => $p->barcode,
-                'selling_price'   => (float) $p->selling_price,
-                'wholesale_price' => (float) $p->wholesale_price,
-                'stock_qty'       => (float) $p->stock_qty,
-                'unit'            => $p->unit ?? 'pcs',
-                'sizes'           => $p->variants->map(fn ($v) => [
-                    'id'                => $v->id,
-                    'label'             => $v->label,
-                    'price'             => (float) $v->selling_price,
-                    'conversion_factor' => (float) ($v->conversion_factor ?? 1),
-                ])->values()->all(),
-            ])
-            ->values()
-            ->all();
+        $tenant = config('database.connections.mysql.database');
 
-        $fastMovingProducts = Product::where('active', true)
-            ->where('is_fast_moving', true)
-            ->with('variants')
-            ->get()
-            ->map(fn ($p) => [
-                'id'              => $p->id,
-                'name'            => $p->name,
-                'name_si'         => $p->name_si,
-                'barcode'         => $p->barcode,
-                'selling_price'   => (float) $p->selling_price,
-                'wholesale_price' => (float) $p->wholesale_price,
-                'stock_qty'       => (float) $p->stock_qty,
-                'unit'            => $p->unit ?? 'pcs',
-                'sizes'           => $p->variants->map(fn ($v) => [
-                    'id'                => $v->id,
-                    'label'             => $v->label,
-                    'price'             => (float) $v->selling_price,
-                    'conversion_factor' => (float) ($v->conversion_factor ?? 1),
-                ])->values()->all(),
-            ])
-            ->values()
-            ->all();
+        $popularProducts = Cache::remember($tenant . '_pos_popular_products_' . now()->toDateString(), 3600, function () use ($mapProduct) {
+            $popularIds = SaleItem::select('product_id', DB::raw('SUM(qty) as total_sold'))
+                ->groupBy('product_id')
+                ->orderByDesc('total_sold')
+                ->limit(24)
+                ->pluck('product_id');
+
+            return Product::where('active', true)
+                ->where('stock_qty', '>', 0)
+                ->when($popularIds->isNotEmpty(), fn ($q) => $q->whereIn('id', $popularIds))
+                ->when($popularIds->isEmpty(),    fn ($q) => $q->orderByDesc('created_at'))
+                ->limit(24)
+                ->with('variants')
+                ->get()
+                ->when($popularIds->isNotEmpty(), fn ($col) => $col->sortBy(
+                    fn ($p) => $popularIds->search($p->id)
+                ))
+                ->map($mapProduct)
+                ->values()
+                ->all();
+        });
+
+        $fastMovingProducts = Cache::remember($tenant . '_pos_fast_moving_products', 3600, function () use ($mapProduct) {
+            return Product::where('active', true)
+                ->where('is_fast_moving', true)
+                ->with('variants')
+                ->get()
+                ->map($mapProduct)
+                ->values()
+                ->all();
+        });
 
         return Inertia::render('Sales/Create', [
             'customers'          => $customers,
