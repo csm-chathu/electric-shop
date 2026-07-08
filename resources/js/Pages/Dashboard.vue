@@ -26,8 +26,9 @@ const props = defineProps({
 // ── Bar chart helpers ──
 const hoveredBar = ref(null);  // { dayIdx, hourIdx }
 
+// hourly rows are compact: [hour, total, bills]
 function chartMax(day) {
-    return Math.max(...day.hourly.map(h => h.total), 1);
+    return Math.max(...day.hourly.map(h => h[1]), 1);
 }
 
 function barHeight(total, max) {
@@ -61,11 +62,12 @@ function heatTextColor(total) {
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// heatmap rows are compact arrays: [date, dow, week, total, bills]
 const heatmapWeeks = computed(() => {
     const weeks = {};
-    props.heatmap.forEach(cell => {
-        if (!weeks[cell.week]) weeks[cell.week] = {};
-        weeks[cell.week][cell.dow] = cell;
+    props.heatmap.forEach(([date, dow, week, total, bills]) => {
+        if (!weeks[week]) weeks[week] = {};
+        weeks[week][dow] = { date, dow, week, total, bills };
     });
     return Object.values(weeks);
 });
@@ -270,10 +272,10 @@ const methodMeta = {
                                     <g v-for="(h, hi) in day.hourly" :key="hi">
                                         <rect
                                             :x="`${(hi / day.hourly.length) * 100}%`"
-                                            :y="110 - barHeight(h.total, chartMax(day)) * 1.0"
+                                            :y="110 - barHeight(h[1], chartMax(day)) * 1.0"
                                             :width="`${(1 / day.hourly.length) * 100 - 1}%`"
-                                            :height="barHeight(h.total, chartMax(day))"
-                                            :fill="h.total === 0 ? '#F1F5F9' : di === 2 ? '#3B82F6' : '#CBD5E1'"
+                                            :height="barHeight(h[1], chartMax(day))"
+                                            :fill="h[1] === 0 ? '#F1F5F9' : di === 2 ? '#3B82F6' : '#CBD5E1'"
                                             :opacity="hoveredBar && hoveredBar.dayIdx === di && hoveredBar.hourIdx === hi ? 1 : 0.85"
                                             rx="2"
                                             class="cursor-pointer transition-opacity"
@@ -287,7 +289,7 @@ const methodMeta = {
                                     <span v-for="(h, hi) in day.hourly" :key="hi"
                                         class="text-center flex-1 text-slate-300"
                                         style="font-size:8px; line-height:1;">
-                                        {{ hi % 4 === 0 ? hourLabel(h.hour) : '' }}
+                                        {{ hi % 4 === 0 ? hourLabel(h[0]) : '' }}
                                     </span>
                                 </div>
                             </div>
@@ -297,10 +299,10 @@ const methodMeta = {
 
                     <!-- Tooltip -->
                     <div v-if="hoveredBar" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
-                        <span class="font-semibold text-gray-700">{{ hoveredBar.day.label }} {{ hourLabel(hoveredBar.h.hour) }}:00</span>
+                        <span class="font-semibold text-gray-700">{{ hoveredBar.day.label }} {{ hourLabel(hoveredBar.h[0]) }}:00</span>
                         —
-                        <span style="color:#2563EB;">{{ fmt(hoveredBar.h.total) }}</span>
-                        <span class="text-slate-400 ml-2">{{ hoveredBar.h.bills }} bill{{ hoveredBar.h.bills !== 1 ? 's' : '' }}</span>
+                        <span style="color:#2563EB;">{{ fmt(hoveredBar.h[1]) }}</span>
+                        <span class="text-slate-400 ml-2">{{ hoveredBar.h[2] }} bill{{ hoveredBar.h[2] !== 1 ? 's' : '' }}</span>
                     </div>
                 </div>
             </div>
@@ -375,11 +377,11 @@ const methodMeta = {
                     <div v-if="recentSales.length === 0" class="px-4 py-8 text-center text-slate-400 text-sm">{{ t('dash.no_sales') }}</div>
                     <div v-for="sale in recentSales" :key="sale.id" class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors">
                         <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style="background:#2563EB;">
-                            {{ sale.user?.name?.charAt(0)?.toUpperCase() || '?' }}
+                            {{ sale.user_name?.charAt(0)?.toUpperCase() || '?' }}
                         </div>
                         <div class="flex-1 min-w-0">
                             <Link :href="route('sales.show', sale.id)" class="text-sm font-semibold hover:underline" style="color:#1E40AF;">{{ sale.invoice_no }}</Link>
-                            <p class="text-xs text-slate-400">{{ sale.user?.name }}</p>
+                            <p class="text-xs text-slate-400">{{ sale.user_name }}</p>
                         </div>
                         <div class="text-right flex-shrink-0">
                             <p class="text-sm font-bold" style="color:#16A34A;">{{ fmt(sale.total) }}</p>

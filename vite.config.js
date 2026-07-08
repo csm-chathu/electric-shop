@@ -18,4 +18,31 @@ export default defineConfig({
             },
         }),
     ],
+
+    build: {
+        // Raise warning threshold (206KB Sales page is expected)
+        chunkSizeWarningLimit: 300,
+
+        rollupOptions: {
+            output: {
+                // Split vendor libs into separate cached chunks
+                manualChunks(id) {
+                    // Vue + Inertia core — changes rarely, cache forever
+                    if (id.includes('node_modules/vue/') ||
+                        id.includes('node_modules/@vue/') ||
+                        id.includes('node_modules/@inertiajs/')) {
+                        return 'vendor-vue';
+                    }
+                    // Axios — tiny, stable
+                    if (id.includes('node_modules/axios')) {
+                        return 'vendor-axios';
+                    }
+                    // JsBarcode — only needed on Products page
+                    if (id.includes('node_modules/jsbarcode')) {
+                        return 'vendor-barcode';
+                    }
+                },
+            },
+        },
+    },
 });
