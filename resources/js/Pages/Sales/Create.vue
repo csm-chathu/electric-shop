@@ -18,11 +18,11 @@ const t = inject('t');
 const posFullscreen = inject('posFullscreen');
 
 function toggleFullscreen() {
-    if (!posFullscreen?.value) {
+    if (document.fullscreenElement) {
+        exitFullscreen();
+    } else {
         if (posFullscreen) posFullscreen.value = true;
         document.documentElement.requestFullscreen?.().catch(() => {});
-    } else {
-        exitFullscreen();
     }
 }
 
@@ -34,9 +34,7 @@ function exitFullscreen() {
 }
 
 function onFullscreenChange() {
-    if (!document.fullscreenElement && posFullscreen) {
-        posFullscreen.value = false;
-    }
+    if (posFullscreen) posFullscreen.value = !!document.fullscreenElement;
 }
 
 // ─── Auth / Permissions ───────────────────────────────────────────────────────
@@ -1073,7 +1071,30 @@ function openProductBrowser() {
 function selectFromBrowser(product) {
     showProductBrowser.value = false;
     browserQuery.value = '';
-    addToCart(product);
+    addToCartTouched(product);
+}
+
+// When touch numpad is on, intercept product tap to ask qty before adding
+function addToCartTouched(product) {
+    // Sizes still need the size picker; weight items benefit most from numpad qty
+    if (!numpadEnabled.value || product.sizes?.length > 0) {
+        addToCart(product);
+        return;
+    }
+    if ((product.stock_qty ?? 0) <= 0) {
+        errorMsg.value = t('err.out_of_stock');
+        return;
+    }
+    numpadItem.value     = null;
+    numpadField.value    = 'field';
+    numpadLabel.value    = product.name_si ? product.name_si + ' / ' + product.name : product.name;
+    numpadMax.value      = product.stock_qty > 0 ? product.stock_qty : null;
+    numpadValue.value    = '1';
+    numpadCallback.value = (val) => {
+        const qty = parseFloat(val);
+        if (!isNaN(qty) && qty > 0) addToCart(product, qty);
+    };
+    showNumpad.value = true;
 }
 </script>
 
@@ -1140,10 +1161,10 @@ function selectFromBrowser(product) {
                     type="button"
                     @click="toggleFullscreen"
                     class="flex-shrink-0 ml-2 p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                    :title="posFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen'"
+                    :title="posFullscreen?.value ? 'Exit Fullscreen (Esc)' : 'Fullscreen'"
                 >
                     <!-- Enter fullscreen icon -->
-                    <svg v-if="!posFullscreen" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg v-if="!posFullscreen?.value" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                     </svg>
                     <!-- Exit fullscreen icon -->
@@ -1251,7 +1272,7 @@ function selectFromBrowser(product) {
                                 :class="idx === activeIndex
                                     ? 'bg-blue-600 text-white'
                                     : 'hover:bg-blue-50 dark:hover:bg-slate-700'"
-                                @mousedown.prevent="addToCart(product)"
+                                @mousedown.prevent="addToCartTouched(product)"
                                 @mouseover="activeIndex = idx"
                             >
                                 <!-- Thumbnail -->
@@ -1548,7 +1569,7 @@ function selectFromBrowser(product) {
                             v-for="product in fastMovingProducts"
                             :key="product.id"
                             type="button"
-                            @click="addToCart(product)"
+                            @click="addToCartTouched(product)"
                             class="flex flex-col items-center text-center p-2 rounded-lg border border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-purple-950 hover:bg-purple-100 dark:hover:bg-purple-900 hover:border-purple-300 active:scale-95 transition-all"
                         >
                             <!-- Image -->
