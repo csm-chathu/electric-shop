@@ -345,14 +345,29 @@ class SaleController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified resource from storage (admin only).
      */
     public function destroy(string $id)
     {
-        $sale = Sale::findOrFail($id);
-        $sale->delete();
+        if (!Auth::user()->isAdmin()) {
+            abort(403, 'Only admins can delete invoices.');
+        }
 
-        return redirect()->route('sales.index')->with('success', 'Sale deleted successfully.');
+        $sale = Sale::with('items')->findOrFail($id);
+
+        DB::transaction(function () use ($sale) {
+            foreach ($sale->items as $item) {
+                if ($item->product_id) {
+                    $product = Product::find($item->product_id);
+                    if ($product) {
+                        $product->increment('stock_qty', $item->qty);
+                    }
+                }
+            }
+            $sale->delete();
+        });
+
+        return redirect()->route('sales.index')->with('success', 'Invoice deleted and stock restored.');
     }
 
     /**

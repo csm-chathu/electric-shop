@@ -129,10 +129,118 @@ const methodMeta = {
             </div>
         </template>
 
-        <!-- ── TOP STAT TILES ── -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <!-- ── STAT TILES + BAR CHART (non-cashier: side by side; cashier: 2 tiles only) ── -->
+        <div v-if="!isCashier" class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
+            <!-- 4 tiles in 2×2 sub-grid -->
+            <div class="lg:col-span-2 grid grid-cols-2 gap-3 content-start">
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
+                    <div class="flex items-center gap-3 px-4 pt-4 pb-2">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#DCFCE7;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#16A34A"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.today_sales') }}</p>
+                            <p class="font-bold text-lg leading-tight truncate" style="color:#15803D;">{{ fmt(todaySales) }}</p>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }} today</span></div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
+                    <div class="flex items-center gap-3 px-4 pt-4 pb-2">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#DBEAFE;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#2563EB"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.month_sales') }}</p>
+                            <p class="font-bold text-lg leading-tight truncate" style="color:#1D4ED8;">{{ fmt(monthSales) }}</p>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills this month</span></div>
+                </div>
+                <Link :href="route('products.index')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
+                    <div class="flex items-center gap-3 px-4 pt-4 pb-2">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#F3E8FF;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#7C3AED"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.total_products') }}</p>
+                            <p class="font-bold text-lg leading-tight" style="color:#6D28D9;">{{ totalProducts }}</p>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">active products</span></div>
+                </Link>
+                <Link :href="route('reports.low-stock')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
+                    <div class="flex items-center gap-3 px-4 pt-4 pb-2">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" :style="lowStockCount > 0 ? 'background:#FEE2E2;' : 'background:#F1F5F9;'">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" :stroke="lowStockCount > 0 ? '#DC2626' : '#94A3B8'"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.low_stock') }}</p>
+                            <p class="font-bold text-lg leading-tight" :style="lowStockCount > 0 ? 'color:#DC2626;' : 'color:#64748B;'">{{ lowStockCount }}</p>
+                        </div>
+                    </div>
+                    <div class="px-4 pb-3"><span class="text-xs" :class="lowStockCount > 0 ? 'text-red-400' : 'text-slate-400'">{{ lowStockCount > 0 ? 'needs attention' : 'all good' }}</span></div>
+                </Link>
+            </div>
 
-            <!-- Today Revenue -->
+            <!-- Bar chart inline -->
+            <div class="lg:col-span-3 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
+                <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:#F1F5F9;">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Sales — Last 3 Days</p>
+                        <p class="text-xs text-slate-400">Hourly breakdown (6am – 10pm)</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <span v-for="(day, di) in last3Days" :key="di"
+                            class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                            :style="di === 2 ? 'background:#DBEAFE;color:#1D4ED8;' : 'background:#F1F5F9;color:#64748B;'">
+                            {{ day.label }}
+                        </span>
+                    </div>
+                </div>
+                <div class="px-4 pt-4 pb-2">
+                    <div class="flex gap-4">
+                        <div v-for="(day, di) in last3Days" :key="di" class="flex-1">
+                            <p class="text-xs font-bold mb-2 truncate" :style="di === 2 ? 'color:#1D4ED8;' : 'color:#94A3B8;'">
+                                {{ day.label }}<span class="font-normal ml-1">{{ fmt(day.total) }}</span>
+                            </p>
+                            <div class="relative" style="height:110px;">
+                                <svg width="100%" height="110" class="overflow-visible">
+                                    <g v-for="(h, hi) in day.hourly" :key="hi">
+                                        <rect
+                                            :x="`${(hi / day.hourly.length) * 100}%`"
+                                            :y="110 - barHeight(h[1], chartMax(day))"
+                                            :width="`${(1 / day.hourly.length) * 100 - 1}%`"
+                                            :height="barHeight(h[1], chartMax(day))"
+                                            :fill="h[1] === 0 ? '#F1F5F9' : di === 2 ? '#3B82F6' : '#CBD5E1'"
+                                            :opacity="hoveredBar && hoveredBar.dayIdx === di && hoveredBar.hourIdx === hi ? 1 : 0.85"
+                                            rx="2"
+                                            class="cursor-pointer transition-opacity"
+                                            @mouseenter="hoveredBar = { dayIdx: di, hourIdx: hi, day, h }"
+                                            @mouseleave="hoveredBar = null"
+                                        />
+                                    </g>
+                                </svg>
+                                <div class="flex justify-between mt-1">
+                                    <span v-for="(h, hi) in day.hourly" :key="hi" class="text-center flex-1 text-slate-300" style="font-size:8px; line-height:1;">
+                                        {{ hi % 4 === 0 ? hourLabel(h[0]) : '' }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="mt-1 text-xs text-slate-400 text-center">{{ day.bills }} bills</div>
+                        </div>
+                    </div>
+                    <div v-if="hoveredBar" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
+                        <span class="font-semibold text-gray-700">{{ hoveredBar.day.label }} {{ hourLabel(hoveredBar.h[0]) }}:00</span>
+                        — <span style="color:#2563EB;">{{ fmt(hoveredBar.h[1]) }}</span>
+                        <span class="text-slate-400 ml-2">{{ hoveredBar.h[2] }} bill{{ hoveredBar.h[2] !== 1 ? 's' : '' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cashier: 2 tiles only -->
+        <div v-else class="grid grid-cols-2 gap-3 mb-4">
             <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
                 <div class="flex items-center gap-3 px-4 pt-4 pb-2">
                     <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#DCFCE7;">
@@ -143,12 +251,8 @@ const methodMeta = {
                         <p class="font-bold text-lg leading-tight truncate" style="color:#15803D;">{{ fmt(todaySales) }}</p>
                     </div>
                 </div>
-                <div class="px-4 pb-3">
-                    <span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }} today</span>
-                </div>
+                <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }} today</span></div>
             </div>
-
-            <!-- Month Revenue -->
             <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
                 <div class="flex items-center gap-3 px-4 pt-4 pb-2">
                     <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#DBEAFE;">
@@ -159,44 +263,8 @@ const methodMeta = {
                         <p class="font-bold text-lg leading-tight truncate" style="color:#1D4ED8;">{{ fmt(monthSales) }}</p>
                     </div>
                 </div>
-                <div class="px-4 pb-3">
-                    <span class="text-xs text-slate-400">{{ monthBills }} bills this month</span>
-                </div>
+                <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills this month</span></div>
             </div>
-
-            <!-- Total Products -->
-            <Link :href="route('products.index')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
-                <div class="flex items-center gap-3 px-4 pt-4 pb-2">
-                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#F3E8FF;">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#7C3AED"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-xs text-slate-500 leading-tight">{{ t('dash.total_products') }}</p>
-                        <p class="font-bold text-lg leading-tight" style="color:#6D28D9;">{{ totalProducts }}</p>
-                    </div>
-                </div>
-                <div class="px-4 pb-3">
-                    <span class="text-xs text-slate-400">active products</span>
-                </div>
-            </Link>
-
-            <!-- Low Stock -->
-            <Link :href="route('reports.low-stock')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
-                <div class="flex items-center gap-3 px-4 pt-4 pb-2">
-                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" :style="lowStockCount > 0 ? 'background:#FEE2E2;' : 'background:#F1F5F9;'">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" :stroke="lowStockCount > 0 ? '#DC2626' : '#94A3B8'"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </div>
-                    <div class="min-w-0">
-                        <p class="text-xs text-slate-500 leading-tight">{{ t('dash.low_stock') }}</p>
-                        <p class="font-bold text-lg leading-tight" :style="lowStockCount > 0 ? 'color:#DC2626;' : 'color:#64748B;'">{{ lowStockCount }}</p>
-                    </div>
-                </div>
-                <div class="px-4 pb-3">
-                    <span class="text-xs" :class="lowStockCount > 0 ? 'text-red-400' : 'text-slate-400'">
-                        {{ lowStockCount > 0 ? 'needs attention' : 'all good' }}
-                    </span>
-                </div>
-            </Link>
         </div>
 
         <!-- ── QUICK ACTIONS ── -->
@@ -211,27 +279,38 @@ const methodMeta = {
                 <div class="quick-action-arrow"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></div>
             </Link>
 
-            <Link :href="isCashier ? route('products.index') : route('products.create')" class="quick-action-card group" style="--from:#7C3AED;--to:#6D28D9;">
+            <!-- Cashier: View Invoices -->
+            <Link v-if="isCashier" :href="route('sales.index')" class="quick-action-card group" style="--from:#0369a1;--to:#075985;">
+                <div class="quick-action-glow" style="background:radial-gradient(circle at 70% 30%, rgba(255,255,255,0.18) 0%, transparent 70%);"></div>
+                <div class="quick-action-icon-wrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="quick-action-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                </div>
+                <span class="quick-action-label">{{ t('nav.sales') }}</span>
+                <div class="quick-action-arrow"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></div>
+            </Link>
+
+            <!-- Non-cashier: Products, Purchases, Reports -->
+            <Link v-if="!isCashier" :href="route('products.create')" class="quick-action-card group" style="--from:#7C3AED;--to:#6D28D9;">
                 <div class="quick-action-glow" style="background:radial-gradient(circle at 70% 30%, rgba(255,255,255,0.18) 0%, transparent 70%);"></div>
                 <div class="quick-action-icon-wrap">
                     <svg xmlns="http://www.w3.org/2000/svg" class="quick-action-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                 </div>
-                <span v-if="!isCashier" class="quick-action-plus">+</span>
-                <span class="quick-action-label">{{ isCashier ? t('nav.products') : t('btn.new_product') }}</span>
+                <span class="quick-action-plus">+</span>
+                <span class="quick-action-label">{{ t('btn.new_product') }}</span>
                 <div class="quick-action-arrow"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></div>
             </Link>
 
-            <Link :href="isCashier ? route('purchases.index') : route('purchases.create')" class="quick-action-card group" style="--from:#059669;--to:#047857;">
+            <Link v-if="!isCashier" :href="route('purchases.create')" class="quick-action-card group" style="--from:#059669;--to:#047857;">
                 <div class="quick-action-glow" style="background:radial-gradient(circle at 70% 30%, rgba(255,255,255,0.18) 0%, transparent 70%);"></div>
                 <div class="quick-action-icon-wrap">
                     <svg xmlns="http://www.w3.org/2000/svg" class="quick-action-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
                 </div>
-                <span v-if="!isCashier" class="quick-action-plus">+</span>
-                <span class="quick-action-label">{{ isCashier ? t('nav.purchases') : t('btn.new_purchase') }}</span>
+                <span class="quick-action-plus">+</span>
+                <span class="quick-action-label">{{ t('btn.new_purchase') }}</span>
                 <div class="quick-action-arrow"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg></div>
             </Link>
 
-            <Link :href="route('reports.index')" class="quick-action-card group" style="--from:#D97706;--to:#B45309;">
+            <Link v-if="!isCashier" :href="route('reports.index')" class="quick-action-card group" style="--from:#D97706;--to:#B45309;">
                 <div class="quick-action-glow" style="background:radial-gradient(circle at 70% 30%, rgba(255,255,255,0.18) 0%, transparent 70%);"></div>
                 <div class="quick-action-icon-wrap">
                     <svg xmlns="http://www.w3.org/2000/svg" class="quick-action-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -261,127 +340,51 @@ const methodMeta = {
             </div>
         </div>
 
-        <!-- ── LAST 3 DAYS BAR CHART + HEATMAP ── -->
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
-
-            <!-- Bar chart: last 3 days hourly -->
-            <div class="lg:col-span-3 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
-                <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:#F1F5F9;">
-                    <div>
-                        <p class="text-sm font-semibold text-gray-800">Sales — Last 3 Days</p>
-                        <p class="text-xs text-slate-400">Hourly breakdown (6am – 10pm)</p>
-                    </div>
-                    <div class="flex gap-3">
-                        <span v-for="(day, di) in last3Days" :key="di"
-                            class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                            :style="di === 2 ? 'background:#DBEAFE;color:#1D4ED8;' : 'background:#F1F5F9;color:#64748B;'">
-                            {{ day.label }}
-                        </span>
-                    </div>
-                </div>
-                <div class="px-4 pt-4 pb-2">
-                    <!-- One bar group per day -->
-                    <div class="flex gap-4">
-                        <div v-for="(day, di) in last3Days" :key="di" class="flex-1">
-                            <p class="text-xs font-bold mb-2 truncate"
-                                :style="di === 2 ? 'color:#1D4ED8;' : 'color:#94A3B8;'">
-                                {{ day.label }}
-                                <span class="font-normal ml-1">{{ fmt(day.total) }}</span>
-                            </p>
-                            <!-- SVG bar chart -->
-                            <div class="relative" style="height:110px;">
-                                <svg width="100%" height="110" class="overflow-visible">
-                                    <g v-for="(h, hi) in day.hourly" :key="hi">
-                                        <rect
-                                            :x="`${(hi / day.hourly.length) * 100}%`"
-                                            :y="110 - barHeight(h[1], chartMax(day)) * 1.0"
-                                            :width="`${(1 / day.hourly.length) * 100 - 1}%`"
-                                            :height="barHeight(h[1], chartMax(day))"
-                                            :fill="h[1] === 0 ? '#F1F5F9' : di === 2 ? '#3B82F6' : '#CBD5E1'"
-                                            :opacity="hoveredBar && hoveredBar.dayIdx === di && hoveredBar.hourIdx === hi ? 1 : 0.85"
-                                            rx="2"
-                                            class="cursor-pointer transition-opacity"
-                                            @mouseenter="hoveredBar = { dayIdx: di, hourIdx: hi, day, h }"
-                                            @mouseleave="hoveredBar = null"
-                                        />
-                                    </g>
-                                </svg>
-                                <!-- Hour axis labels -->
-                                <div class="flex justify-between mt-1">
-                                    <span v-for="(h, hi) in day.hourly" :key="hi"
-                                        class="text-center flex-1 text-slate-300"
-                                        style="font-size:8px; line-height:1;">
-                                        {{ hi % 4 === 0 ? hourLabel(h[0]) : '' }}
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="mt-1 text-xs text-slate-400 text-center">{{ day.bills }} bills</div>
-                        </div>
-                    </div>
-
-                    <!-- Tooltip -->
-                    <div v-if="hoveredBar" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
-                        <span class="font-semibold text-gray-700">{{ hoveredBar.day.label }} {{ hourLabel(hoveredBar.h[0]) }}:00</span>
-                        —
-                        <span style="color:#2563EB;">{{ fmt(hoveredBar.h[1]) }}</span>
-                        <span class="text-slate-400 ml-2">{{ hoveredBar.h[2] }} bill{{ hoveredBar.h[2] !== 1 ? 's' : '' }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Heatmap: peak days last 10 weeks -->
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
-                <div class="px-4 py-3 border-b" style="border-color:#F1F5F9;">
+        <!-- ── HEATMAP (non-cashier only) ── -->
+        <div v-if="!isCashier" class="mb-4 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
+            <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:#F1F5F9;">
+                <div>
                     <p class="text-sm font-semibold text-gray-800">Peak Days</p>
                     <p class="text-xs text-slate-400">Sales heatmap — last 10 weeks</p>
                 </div>
-                <div class="px-4 py-3 overflow-x-auto">
-                    <div class="flex gap-1 min-w-0">
-                        <!-- Day-of-week labels -->
-                        <div class="flex flex-col gap-1 mr-1 flex-shrink-0">
-                            <div style="height:16px;"></div>
-                            <div v-for="label in DOW_LABELS" :key="label"
-                                class="flex items-center justify-end"
-                                style="height:16px; font-size:9px; color:#94A3B8; width:22px;">
-                                {{ label }}
-                            </div>
-                        </div>
-                        <!-- Week columns -->
-                        <div class="flex gap-1 flex-1 min-w-0">
-                            <div v-for="(week, wi) in heatmapWeeks" :key="wi" class="flex flex-col gap-1 flex-1 min-w-0">
-                                <!-- Month label on first day of month -->
-                                <div style="height:16px; font-size:8px; color:#94A3B8; text-align:center; overflow:hidden;">
-                                    {{ week[1]?.date?.slice(5,7) === '01' || wi === 0 ? week[1]?.date?.slice(5,7) : '' }}
-                                </div>
-                                <div
-                                    v-for="dow in [1,2,3,4,5,6,7]"
-                                    :key="dow"
-                                    class="rounded-sm cursor-default relative"
-                                    style="height:16px;"
-                                    :style="`background:${week[dow] ? heatColor(week[dow].total) : '#F8FAFC'};`"
-                                    @mouseenter="week[dow] && (hoveredCell = week[dow])"
-                                    @mouseleave="hoveredCell = null"
-                                >
-                                </div>
-                            </div>
+            </div>
+            <div class="px-4 py-3 overflow-x-auto">
+                <div class="flex gap-1 min-w-0">
+                    <div class="flex flex-col gap-1 mr-1 flex-shrink-0">
+                        <div style="height:16px;"></div>
+                        <div v-for="label in DOW_LABELS" :key="label"
+                            class="flex items-center justify-end"
+                            style="height:16px; font-size:9px; color:#94A3B8; width:22px;">
+                            {{ label }}
                         </div>
                     </div>
-
-                    <!-- Legend -->
-                    <div class="flex items-center gap-1 mt-3">
-                        <span class="text-slate-400" style="font-size:9px;">Less</span>
-                        <div v-for="c in ['#F1F5F9','#DCFCE7','#86EFAC','#22C55E','#16A34A','#15803D']" :key="c"
-                            class="w-3 h-3 rounded-sm flex-shrink-0" :style="`background:${c};`"></div>
-                        <span class="text-slate-400" style="font-size:9px;">More</span>
+                    <div class="flex gap-1 flex-1 min-w-0">
+                        <div v-for="(week, wi) in heatmapWeeks" :key="wi" class="flex flex-col gap-1 flex-1 min-w-0">
+                            <div style="height:16px; font-size:8px; color:#94A3B8; text-align:center; overflow:hidden;">
+                                {{ week[1]?.date?.slice(5,7) === '01' || wi === 0 ? week[1]?.date?.slice(5,7) : '' }}
+                            </div>
+                            <div
+                                v-for="dow in [1,2,3,4,5,6,7]"
+                                :key="dow"
+                                class="rounded-sm cursor-default"
+                                style="height:16px;"
+                                :style="`background:${week[dow] ? heatColor(week[dow].total) : '#F8FAFC'};`"
+                                @mouseenter="week[dow] && (hoveredCell = week[dow])"
+                                @mouseleave="hoveredCell = null"
+                            ></div>
+                        </div>
                     </div>
-
-                    <!-- Heatmap tooltip -->
-                    <div v-if="hoveredCell" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
-                        <span class="font-semibold text-gray-700">{{ new Date(hoveredCell.date).toLocaleDateString('en-LK', { weekday:'short', month:'short', day:'numeric' }) }}</span>
-                        —
-                        <span style="color:#16A34A;">{{ fmt(hoveredCell.total) }}</span>
-                        <span class="text-slate-400 ml-2">{{ hoveredCell.bills }} bill{{ hoveredCell.bills !== 1 ? 's' : '' }}</span>
-                    </div>
+                </div>
+                <div class="flex items-center gap-1 mt-3">
+                    <span class="text-slate-400" style="font-size:9px;">Less</span>
+                    <div v-for="c in ['#F1F5F9','#DCFCE7','#86EFAC','#22C55E','#16A34A','#15803D']" :key="c"
+                        class="w-3 h-3 rounded-sm flex-shrink-0" :style="`background:${c};`"></div>
+                    <span class="text-slate-400" style="font-size:9px;">More</span>
+                </div>
+                <div v-if="hoveredCell" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
+                    <span class="font-semibold text-gray-700">{{ new Date(hoveredCell.date).toLocaleDateString('en-LK', { weekday:'short', month:'short', day:'numeric' }) }}</span>
+                    — <span style="color:#16A34A;">{{ fmt(hoveredCell.total) }}</span>
+                    <span class="text-slate-400 ml-2">{{ hoveredCell.bills }} bill{{ hoveredCell.bills !== 1 ? 's' : '' }}</span>
                 </div>
             </div>
         </div>
@@ -389,8 +392,8 @@ const methodMeta = {
         <!-- ── MAIN CONTENT GRID ── -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            <!-- Recent Sales (2/3 width) -->
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
+            <!-- Recent Sales (full width for cashier, 2/3 for others) -->
+            <div :class="isCashier ? 'lg:col-span-3' : 'lg:col-span-2'" class="bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
                 <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:#F1F5F9;">
                     <h2 class="font-semibold text-gray-800 text-sm">{{ t('dash.recent_sales') }}</h2>
                     <Link :href="route('sales.index')" class="text-xs hover:underline" style="color:#2563EB;">{{ t('dash.view_all') }}</Link>
@@ -413,8 +416,8 @@ const methodMeta = {
                 </div>
             </div>
 
-            <!-- Right column: Expiring Soon -->
-            <div class="flex flex-col gap-4">
+            <!-- Right column: Expiring Soon + Fast Moving (non-cashier only) -->
+            <div v-if="!isCashier" class="flex flex-col gap-4">
 
                 <!-- Expiring Soon -->
                 <div v-if="expiringSoon.length > 0" class="bg-white rounded-xl shadow-sm" style="border:1px solid #FCD34D;">

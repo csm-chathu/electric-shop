@@ -20,7 +20,13 @@ const footer      = computed(() => props.settings.receipt_footer || '');
 const currency    = computed(() => props.settings.currency     || 'Rs.');
 const logoUrl     = computed(() => props.settings.logo         || null);
 
-const isSplit = computed(() => (props.sale.payments?.length ?? 0) > 1);
+const isSplit   = computed(() => (props.sale.payments?.length ?? 0) > 1);
+const isAdmin   = computed(() => usePage().props.auth?.role === 'admin');
+
+function deleteSale() {
+    if (!confirm(`Delete invoice ${props.sale.invoice_no}? This will restore stock and cannot be undone.`)) return;
+    router.delete(route('sales.destroy', props.sale.id));
+}
 
 const paymentLabel = computed(() => {
     if (isSplit.value) return tBill('lbl.cash') + ' + ' + tBill('lbl.card');
@@ -168,6 +174,18 @@ onMounted(async () => {
                         </svg>
                         {{ t('btn.new_sale') }}
                     </Link>
+                    <button
+                        v-if="isAdmin"
+                        type="button"
+                        @click="deleteSale"
+                        class="no-print flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+                        style="background-color:#7F1D1D;"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Delete
+                    </button>
                 </div>
             </div>
         </template>

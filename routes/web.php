@@ -49,7 +49,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/naya-potha', [CustomerController::class, 'nayaPotha'])->name('naya-potha.index');
 
     // Sales / Billing
-    Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
+    Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('/sales/hold', [SaleController::class, 'holdBill'])->name('sales.hold');
     Route::get('/sales/held', [SaleController::class, 'getHeldBills'])->name('sales.held');
     Route::get('/sales/{sale}/return',  [SaleReturnController::class, 'create'])->name('sales.return.create');

@@ -58,6 +58,7 @@ const allProducts    = ref([]);   // full catalogue, loaded on mount
 const productsReady  = ref(false);
 
 const cart             = ref([]);
+const highlightedItems = ref({});
 const selectedCustomer = ref(null);
 const priceMode        = ref('retail'); // 'retail' | 'wholesale'
 const paymentMethod      = ref('cash');
@@ -608,6 +609,7 @@ function addToCart(product, initialQty = null, focusQty = true) {
             existing.qty = Math.min(existing.qty + 1, maxQty);
             recalcLine(existing);
         }
+        flashHighlight(existing);
         if (focusQty) {
             nextTick(() => {
                 const idx = cart.value.indexOf(existing);
@@ -639,13 +641,27 @@ function addToCart(product, initialQty = null, focusQty = true) {
             stock_qty:       product.stock_qty || 0,
             alert_qty:       product.alert_qty || 5,
         });
-        if (startQty !== null) recalcLine(cart.value[cart.value.length - 1]);
+        const newItem = cart.value[cart.value.length - 1];
+        if (startQty !== null) recalcLine(newItem);
+        flashHighlight(newItem);
         if (focusQty) nextTick(() => {
             const inputs = document.querySelectorAll('.cart-qty-input');
             const last = inputs[inputs.length - 1];
             if (last) { last.focus(); last.select(); }
         });
     }
+}
+
+function itemKey(item) {
+    return `${item.product_id ?? 'c'}-${item.variant_id ?? 'none'}`;
+}
+
+function flashHighlight(item) {
+    const key = itemKey(item);
+    highlightedItems.value[key] = true;
+    setTimeout(() => {
+        delete highlightedItems.value[key];
+    }, 2500);
 }
 
 function recalcLine(item) {
@@ -1372,7 +1388,10 @@ function addToCartTouched(product) {
                                     v-for="(item, idx) in cart"
                                     :key="item.product_id != null ? item.product_id : 'c' + idx"
                                     class="border-b border-gray-50 dark:border-slate-700 transition-colors"
-                                    :class="idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-gray-100/60 dark:bg-slate-800/60'"
+                                    :class="[
+                                        idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-gray-100/60 dark:bg-slate-800/60',
+                                        highlightedItems[itemKey(item)] ? 'cart-item-flash' : ''
+                                    ]"
                                 >
                                     <td class="px-4 py-1.5">
                                         <div class="flex items-center gap-3">
@@ -2304,6 +2323,15 @@ function addToCartTouched(product) {
 }
 .shake-field {
     animation: shake 0.55s ease;
+}
+
+@keyframes cart-flash {
+    0%   { background-color: #fde68a; }
+    60%  { background-color: #fde68a; }
+    100% { background-color: transparent; }
+}
+.cart-item-flash {
+    animation: cart-flash 2.5s ease-out forwards !important;
 }
 
 </style>
