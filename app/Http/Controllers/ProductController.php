@@ -66,6 +66,9 @@ class ProductController extends Controller
             $validated['barcode'] = strtoupper(Str::slug($validated['name'], '') . '-' . strtoupper(Str::random(6)));
         }
 
+        $validated['wholesale_price'] = $validated['wholesale_price'] ?? 0;
+        $validated['cost_price']      = $validated['cost_price'] ?? 0;
+
         $product = Product::create(array_merge($validated, [
             'stock_qty' => 0,
             'alert_qty' => 1,
@@ -125,9 +128,14 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         unset($validated['variants']);
 
+        $validated['wholesale_price'] = $validated['wholesale_price'] ?? 0;
+        $validated['cost_price']      = $validated['cost_price'] ?? 0;
+
         $product = Product::create($validated);
 
         foreach ($variants as $v) {
+            $v['wholesale_price'] = $v['wholesale_price'] ?? 0;
+            $v['cost_price']      = $v['cost_price'] ?? 0;
             $product->variants()->create($v);
         }
 
@@ -235,6 +243,9 @@ class ProductController extends Controller
         $variants = $validated['variants'] ?? [];
         unset($validated['variants']);
 
+        $validated['wholesale_price'] = $validated['wholesale_price'] ?? 0;
+        $validated['cost_price']      = $validated['cost_price'] ?? 0;
+
         $product->update($validated);
 
         Cache::forget($this->tenantKey('api_products_all'));
@@ -242,6 +253,8 @@ class ProductController extends Controller
         // Sync variants: upsert existing, delete removed
         $keptIds = [];
         foreach ($variants as $v) {
+            $v['wholesale_price'] = $v['wholesale_price'] ?? 0;
+            $v['cost_price']      = $v['cost_price'] ?? 0;
             if (!empty($v['id'])) {
                 $variant = ProductVariant::where('product_id', $product->id)->find($v['id']);
                 if ($variant) { $variant->update($v); $keptIds[] = $variant->id; }
