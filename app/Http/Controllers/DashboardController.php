@@ -11,6 +11,19 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    public function clearCache()
+    {
+        $tenant = config('database.connections.mysql.database');
+        $today  = Carbon::today()->toDateString();
+
+        // Forget all 24 hourly slots for today
+        for ($h = 0; $h <= 23; $h++) {
+            Cache::forget($tenant . '_dashboard_' . $today . '_h' . $h);
+        }
+
+        return back()->with('flash', ['success' => 'Dashboard cache cleared.']);
+    }
+
     public function index()
     {
         $today = Carbon::today()->toDateString();

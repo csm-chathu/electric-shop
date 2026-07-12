@@ -1,12 +1,19 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { inject, computed, ref } from 'vue';
 
 const t = inject('t');
 const page = usePage();
 const userRole = computed(() => page.props.auth?.user?.role || 'cashier');
 const isCashier = computed(() => userRole.value === 'cashier');
+
+const clearForm = useForm({});
+function clearCache() {
+    clearForm.post(route('dashboard.clear-cache'), {
+        onSuccess: () => router.reload(),
+    });
+}
 
 const props = defineProps({
     todaySales:     { type: Number, default: 0 },
@@ -104,7 +111,22 @@ const methodMeta = {
     <Head :title="t('page.dashboard')" />
     <AuthenticatedLayout>
         <template #header>
-            <h1 class="text-xl font-bold text-gray-800">{{ t('page.dashboard') }}</h1>
+            <div class="flex items-center justify-between w-full">
+                <h1 class="text-xl font-bold text-gray-800">{{ t('page.dashboard') }}</h1>
+                <button
+                    v-if="!isCashier"
+                    type="button"
+                    @click="clearCache"
+                    :disabled="clearForm.processing"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-500 transition-colors disabled:opacity-50"
+                    title="Clear dashboard cache and reload fresh data"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {{ clearForm.processing ? 'Clearing…' : 'Clear Cache' }}
+                </button>
+            </div>
         </template>
 
         <!-- ── TOP STAT TILES ── -->
