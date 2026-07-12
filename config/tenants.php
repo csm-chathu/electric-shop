@@ -38,6 +38,11 @@ return [
         'username' => 'lmucunal_mysql',
         'password' => 'K!ngd0m@!t0ne',
     ],
+    'hiruna-marketing.lumac.lk' => [
+        'database' => 'lmucunal_hiruna_marketing',
+        'username' => 'lmucunal_mysql',
+        'password' => 'K!ngd0m@!t0ne',
+    ],
     'pos.lumac.lk' => [
         'database' => 'lmucunal_senewirathna',
         'username' => 'lmucunal_mysql',

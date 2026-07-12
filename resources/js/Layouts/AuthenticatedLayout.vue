@@ -1,5 +1,9 @@
 <script setup>
 import { ref, computed, watch, provide, inject, onMounted, onUnmounted } from 'vue';
+import {
+    numpadEnabled, showNumpad, numpadValue, numpadLabel, numpadMax, NUMPAD_KEYS,
+    setNumpadEnabled, numpadKeyPress, numpadConfirm, closeNumpad,
+} from '@/composables/useNumpad.js';
 import { Link, usePage, router } from '@inertiajs/vue3';
 
 const page = usePage();
@@ -12,16 +16,6 @@ const sidebarOpen      = ref(false);
 const sidebarCollapsed = ref(localStorage.getItem('sidebarCollapsed') === 'true');
 const posFullscreen    = ref(false);
 provide('posFullscreen', posFullscreen);
-
-const fsActive = ref(false);
-function onFullscreenChange() { fsActive.value = !!document.fullscreenElement; }
-function toggleFullscreen() {
-    if (document.fullscreenElement) {
-        document.exitFullscreen?.().catch(() => {});
-    } else {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-    }
-}
 
 function toggleCollapse() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -82,7 +76,6 @@ let removeFinishListener;
 let removeStartListener;
 onMounted(() => {
     window.addEventListener('keydown', onGlobalKeydown);
-    document.addEventListener('fullscreenchange', onFullscreenChange);
     applySidebarForRoute();
     checkFlash();
     removeStartListener  = router.on('start',    () => { navigating.value = true; });
@@ -91,7 +84,6 @@ onMounted(() => {
 });
 onUnmounted(() => {
     window.removeEventListener('keydown', onGlobalKeydown);
-    document.removeEventListener('fullscreenchange', onFullscreenChange);
     removeStartListener?.();
     removeNavListener?.();
     removeFinishListener?.();
@@ -178,60 +170,15 @@ function reloadApp() {
 }
 
 // ── Global Touch Numpad ──────────────────────────────────────────────────────
-const numpadEnabled = computed(() => {
-    const v = page.props.appSettings?.pos_touch_numpad;
-    return v === '1' || v === true || isElectron.value;
-});
-
-const showNumpad     = ref(false);
-const numpadValue    = ref('');
-const numpadLabel    = ref('');
-const numpadMax      = ref(null);
-const numpadCallback = ref(null);
-const numpadOnInput  = ref(null);
-const numpadRaw      = ref(false);
-
-const NUMPAD_KEYS = [
-    ['7','8','9'],
-    ['4','5','6'],
-    ['1','2','3'],
-    ['.','0','⌫'],
-];
-
-function openNumpad(currentVal, label, callback, { max = null, onInput = null, raw = false } = {}) {
-    numpadLabel.value    = String(label || '');
-    numpadMax.value      = max ?? null;
-    numpadCallback.value = callback;
-    numpadOnInput.value  = onInput;
-    numpadRaw.value      = raw;
-    numpadValue.value    = String(currentVal ?? '');
-    showNumpad.value     = true;
-}
-
-function numpadKeyPress(key) {
-    if (key === 'C')  { numpadValue.value = ''; numpadOnInput.value?.(numpadValue.value); return; }
-    if (key === '⌫') { numpadValue.value = numpadValue.value.slice(0, -1); numpadOnInput.value?.(numpadValue.value); return; }
-    if (!numpadRaw.value && key === '.' && numpadValue.value.includes('.')) return;
-    if (!numpadRaw.value && numpadValue.value === '0' && key !== '.') { numpadValue.value = key; numpadOnInput.value?.(numpadValue.value); return; }
-    numpadValue.value += key;
-    numpadOnInput.value?.(numpadValue.value);
-}
-
-function numpadConfirm() {
-    numpadCallback.value?.(numpadValue.value);
-    numpadCallback.value = null;
-    numpadOnInput.value  = null;
-    showNumpad.value     = false;
-}
-
-function closeNumpad() {
-    numpadCallback.value = null;
-    numpadOnInput.value  = null;
-    showNumpad.value     = false;
-}
-
-provide('numpadEnabled', numpadEnabled);
-provide('openNumpad', openNumpad);
+// State lives in useNumpad.js (module-level singleton) and is provided from app.js.
+// AuthenticatedLayout only owns the "enabled" logic based on settings + Electron.
+watch(
+    () => [page.props.appSettings?.pos_touch_numpad, isElectron.value],
+    ([v, electron]) => {
+        setNumpadEnabled((!!v && v !== '0') || electron);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -440,22 +387,6 @@ provide('openNumpad', openNumpad);
                         fill="none" viewBox="0 0 24 24" stroke="currentColor"
                     >
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                </button>
-
-                <!-- Fullscreen toggle -->
-                <button
-                    @click="toggleFullscreen"
-                    :title="fsActive ? 'Exit Fullscreen' : 'Enter Fullscreen'"
-                    class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-                >
-                    <!-- Enter fullscreen icon -->
-                    <svg v-if="!fsActive" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                    <!-- Exit fullscreen icon -->
-                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
                     </svg>
                 </button>
 

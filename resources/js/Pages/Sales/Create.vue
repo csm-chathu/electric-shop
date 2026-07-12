@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue';
+import { showNumpad } from '@/composables/useNumpad.js';
 import axios from 'axios';
 import { getProducts, invalidateProducts } from '@/stores/productCache';
 
@@ -862,6 +863,34 @@ function confirmHold() {
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 function handleGlobalKeyboard(e) {
+    // Barcode scanner input when numpad mode is on (search input is readonly/blurred)
+    if (numpadEnabled.value && !showNumpad.value) {
+        const tag = document.activeElement?.tagName?.toUpperCase();
+        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+        if (!isEditable && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            const now = Date.now();
+            if (now - barcodeLastTime > 80) barcodeBuffer = '';
+            barcodeBuffer  += e.key;
+            barcodeLastTime = now;
+            e.preventDefault();
+            return;
+        }
+        if (!isEditable && e.key === 'Enter' && barcodeBuffer.length >= 3) {
+            e.preventDefault();
+            const code = barcodeBuffer;
+            barcodeBuffer   = '';
+            barcodeLastTime = 0;
+            const hit = allProducts.value.find(p => p.barcode === code);
+            if (hit) {
+                addToCartTouched(hit);
+            } else {
+                browserQuery.value = code;
+                showProductBrowser.value = true;
+            }
+            return;
+        }
+    }
+
     // Size picker keyboard navigation takes priority
     if (showSizePicker.value && sizePickerProduct.value) {
         const sizes = sizePickerProduct.value.sizes;
@@ -971,6 +1000,10 @@ const focusedPriceIdx = ref(null);
 // ─── Touch Numpad (global — injected from AuthenticatedLayout) ───────────────
 const numpadEnabled = inject('numpadEnabled', computed(() => false));
 const openNumpad    = inject('openNumpad', () => {});
+
+// Global barcode buffer for numpad mode (barcode scanner bypasses readonly inputs)
+let barcodeBuffer   = '';
+let barcodeLastTime = 0;
 
 function openCartNumpad(item, field) {
     const currentVal = field === 'qty' ? item.qty
