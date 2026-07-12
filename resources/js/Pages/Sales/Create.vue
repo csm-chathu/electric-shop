@@ -472,16 +472,8 @@ function onSearchFocus() {
     showDropdown.value = productsReady.value && dropdownItems.value.length > 0;
 }
 
-function onSearchBlur(e) {
-    const to = e.relatedTarget;
-    // Keep focus if moving to another input (cart qty, price, cash paid, etc.)
-    if (to && (to.tagName === 'INPUT' || to.tagName === 'TEXTAREA' || to.tagName === 'SELECT')) return;
-    // Otherwise re-focus search after a short delay (allows button clicks to register first)
-    setTimeout(() => {
-        if (document.activeElement !== searchInput.value) {
-            searchInput.value?.focus();
-        }
-    }, 150);
+function onSearchBlur() {
+    setTimeout(() => { showDropdown.value = false; }, 150);
 }
 
 function onSearchInput() {
@@ -947,6 +939,10 @@ async function loadAllProducts() {
     try {
         allProducts.value   = await getProducts();
         productsReady.value = true;
+        // If the search input is already focused (auto-focused on mount), show the list now
+        if (document.activeElement === searchInput.value && !searchQuery.value.trim()) {
+            showDropdown.value = allProducts.value.length > 0;
+        }
     } catch {
         productsReady.value = true;
     }
