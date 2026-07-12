@@ -515,7 +515,7 @@ watch(
                             </div>
                             <p class="text-sm text-gray-500 dark:text-slate-400 truncate">{{ numpadLabel }}</p>
                             <div class="mt-2 flex items-center justify-end gap-2 bg-gray-50 dark:bg-slate-900 rounded-xl px-4 py-3 min-h-[56px]">
-                                <span class="text-3xl font-bold text-gray-800 dark:text-slate-100 tracking-tight">{{ numpadValue || '0' }}</span>
+                                <span class="text-3xl font-bold text-gray-800 dark:text-slate-100 tracking-tight">{{ numpadValue ? Number(numpadValue).toLocaleString('en-LK') : '0' }}</span>
                                 <span v-if="numpadMax" class="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">/ {{ numpadMax }}</span>
                             </div>
                         </div>

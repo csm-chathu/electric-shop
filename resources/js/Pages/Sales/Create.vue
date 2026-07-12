@@ -857,11 +857,13 @@ function confirmHold() {
 
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 function handleGlobalKeyboard(e) {
-    // Barcode scanner input when numpad mode is on (search input is readonly/blurred)
-    if (numpadEnabled.value && !showNumpad.value) {
+    // Global barcode scan — works whenever focus is NOT inside an editable field
+    // (covers numpad mode where search is readonly, AND normal mode when user clicks away)
+    if (!showNumpad.value) {
         const tag = document.activeElement?.tagName?.toUpperCase();
-        const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
-        if (!isEditable && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const isSearchFocused = document.activeElement === searchInput.value;
+        const isEditable = (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) && !isSearchFocused;
+        if (!isEditable && !isSearchFocused && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
             const now = Date.now();
             if (now - barcodeLastTime > 80) barcodeBuffer = '';
             barcodeBuffer  += e.key;
@@ -869,7 +871,7 @@ function handleGlobalKeyboard(e) {
             e.preventDefault();
             return;
         }
-        if (!isEditable && e.key === 'Enter' && barcodeBuffer.length >= 4) {
+        if (!isEditable && !isSearchFocused && e.key === 'Enter' && barcodeBuffer.length >= 4) {
             e.preventDefault();
             const code = barcodeBuffer;
             barcodeBuffer   = '';
