@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\InstallmentPayment;
 use App\Models\Product;
 use App\Models\Sale;
 use Carbon\Carbon;
@@ -150,7 +151,44 @@ class DashboardController extends Controller
             );
         });
 
-        return Inertia::render('Dashboard', $data)
-            ->with(['flash' => session('flash')]);
+        // ── Installment alerts (not cached — always fresh) ──────────
+        InstallmentPayment::unpaid()->where('due_date', '<', today())->update(['status' => 'overdue']);
+
+        $overdueInstallments = InstallmentPayment::with(['plan.customer'])
+            ->overdue()
+            ->orderBy('due_date')
+            ->get()
+            ->map(fn ($p) => [
+                'id'           => $p->id,
+                'plan_id'      => $p->plan_id,
+                'plan_no'      => $p->plan->plan_no,
+                'customer'     => $p->plan->customer?->name,
+                'installment_no' => $p->installment_no,
+                'due_date'     => $p->due_date->toDateString(),
+                'amount_due'   => $p->amount_due,
+                'amount_paid'  => $p->amount_paid,
+                'days_overdue' => $p->due_date->diffInDays(today()),
+            ]);
+
+        $upcomingInstallments = InstallmentPayment::with(['plan.customer'])
+            ->dueSoon(2)
+            ->orderBy('due_date')
+            ->get()
+            ->map(fn ($p) => [
+                'id'           => $p->id,
+                'plan_id'      => $p->plan_id,
+                'plan_no'      => $p->plan->plan_no,
+                'customer'     => $p->plan->customer?->name,
+                'installment_no' => $p->installment_no,
+                'due_date'     => $p->due_date->toDateString(),
+                'amount_due'   => $p->amount_due,
+                'amount_paid'  => $p->amount_paid,
+                'days_until'   => today()->diffInDays($p->due_date),
+            ]);
+
+        return Inertia::render('Dashboard', array_merge($data, [
+            'overdueInstallments'  => $overdueInstallments,
+            'upcomingInstallments' => $upcomingInstallments,
+        ]))->with(['flash' => session('flash')]);
     }
 }

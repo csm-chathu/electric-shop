@@ -15,6 +15,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ImageKitController;
 use App\Http\Controllers\ProductImportController;
+use App\Http\Controllers\InstallmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -58,6 +59,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/products/all',     [ProductController::class, 'all'])->name('products.all');
     Route::get('/api/products/version', [ProductController::class, 'version'])->name('products.version');
     Route::get('/api/imagekit/auth',    [ImageKitController::class, 'auth'])->name('imagekit.auth');
+
+    // Installment Plans
+    Route::get('/api/customers/{customer}/installments-summary', [InstallmentController::class, 'customerSummary'])->name('installments.customer-summary');
+    Route::resource('installments', InstallmentController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
+    Route::post('/installments/{plan}/payments/{payment}/pay', [InstallmentController::class, 'pay'])->name('installments.pay');
+    Route::post('/installments/{plan}/documents', [InstallmentController::class, 'uploadDocument'])->name('installments.documents.upload');
+    Route::get('/installments/{plan}/documents/{document}', [InstallmentController::class, 'serveDocument'])->name('installments.documents.serve');
 
     // Purchases / GRN
     Route::resource('purchases', PurchaseController::class)->only(['index', 'create', 'store', 'show', 'destroy']);

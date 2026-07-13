@@ -27,7 +27,9 @@ const props = defineProps({
     heatmap:        { type: Array,  default: () => [] },
     fastMoving:     { type: Array,  default: () => [] },
     recentSales:    { type: Array,  default: () => [] },
-    expiringSoon:   { type: Array,  default: () => [] },
+    expiringSoon:           { type: Array,  default: () => [] },
+    overdueInstallments:    { type: Array,  default: () => [] },
+    upcomingInstallments:   { type: Array,  default: () => [] },
 });
 
 // ── Bar chart helpers ──
@@ -336,6 +338,56 @@ const methodMeta = {
                     <p class="text-xs text-slate-400">{{ (methodMeta[p.method] || { label: p.method }).label }}</p>
                     <p class="font-bold text-sm truncate" :style="`color:${(methodMeta[p.method] || methodMeta.cash).color};`">{{ fmt(p.total) }}</p>
                     <p class="text-xs text-slate-400">{{ p.bills }} {{ p.bills == 1 ? 'bill' : 'bills' }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── INSTALLMENT ALERTS (non-cashier only) ── -->
+        <div v-if="!isCashier && (overdueInstallments.length > 0 || upcomingInstallments.length > 0)" class="mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            <!-- Overdue -->
+            <div v-if="overdueInstallments.length > 0" class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #FECACA;">
+                <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#FECACA; background:#FFF5F5;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                    <p class="text-sm font-semibold text-red-700">Overdue Installments ({{ overdueInstallments.length }})</p>
+                </div>
+                <div class="divide-y" style="border-color:#FEE2E2;">
+                    <div v-for="item in overdueInstallments.slice(0, 5)" :key="item.id" class="flex items-center gap-3 px-4 py-2.5 bg-red-50">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-bold text-red-800">{{ item.plan_no }}</p>
+                            <p class="text-xs text-red-600 truncate">{{ item.customer }}</p>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-xs font-semibold text-red-700">Rs. {{ Number(item.amount_due - item.amount_paid).toLocaleString('en-LK', { minimumFractionDigits: 2 }) }}</p>
+                            <p class="text-xs text-red-500">{{ item.days_overdue }}d overdue</p>
+                        </div>
+                        <Link :href="route('installments.show', item.plan_id)" class="text-xs text-red-600 hover:underline font-semibold flex-shrink-0">View</Link>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Due Soon -->
+            <div v-if="upcomingInstallments.length > 0" class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #FDE68A;">
+                <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#FDE68A; background:#FFFBEB;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-sm font-semibold text-amber-700">Due in 2 Days ({{ upcomingInstallments.length }})</p>
+                </div>
+                <div class="divide-y" style="border-color:#FEF3C7;">
+                    <div v-for="item in upcomingInstallments.slice(0, 5)" :key="item.id" class="flex items-center gap-3 px-4 py-2.5 bg-amber-50">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs font-bold text-amber-800">{{ item.plan_no }}</p>
+                            <p class="text-xs text-amber-600 truncate">{{ item.customer }}</p>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-xs font-semibold text-amber-700">Rs. {{ Number(item.amount_due - item.amount_paid).toLocaleString('en-LK', { minimumFractionDigits: 2 }) }}</p>
+                            <p class="text-xs text-amber-500">Due {{ item.due_date }}</p>
+                        </div>
+                        <Link :href="route('installments.show', item.plan_id)" class="text-xs text-amber-600 hover:underline font-semibold flex-shrink-0">View</Link>
+                    </div>
                 </div>
             </div>
         </div>
