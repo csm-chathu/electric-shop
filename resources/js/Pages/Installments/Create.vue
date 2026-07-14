@@ -1,11 +1,16 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, inject } from 'vue';
+import axios from 'axios';
 import { getProducts } from '@/stores/productCache';
 
+const t = inject('t');
+
 const props = defineProps({
-    customers: { type: Array, default: () => [] },
+    customers:           { type: Array,  default: () => [] },
+    defaultInterestRate: { type: Number, default: 10 },
+    defaultGraceDays:    { type: Number, default: 7 },
 });
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -51,35 +56,31 @@ async function saveQuickCustomer() {
     quickError.value = '';
     quickSaving.value = true;
     try {
-        const res = await fetch(route('customers.quick-store'), {
-            method:  'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
-                'Accept':       'application/json',
-            },
-            body: JSON.stringify({ name: quickName.value.trim(), phone: quickPhone.value.trim() || null }),
+        const res = await axios.post(route('customers.quick-store'), {
+            name:  quickName.value.trim(),
+            phone: quickPhone.value.trim() || null,
         });
-        const data = await res.json();
-        if (!res.ok) {
-            quickError.value = data.message || 'Failed to create customer.';
-            return;
-        }
-        const c = data.customer;
+        const c = res.data.customer;
         allCustomers.value.unshift(c);   // add to local list
         selectCustomer(c);
         customerSearch.value = '';
         showCustomerDrop.value = false;
         showQuickReg.value = false;
-    } catch {
-        quickError.value = 'Network error. Try again.';
+    } catch (err) {
+        quickError.value = err?.response?.data?.message || 'Network error. Try again.';
     } finally {
         quickSaving.value = false;
     }
 }
+const todayStr = new Date().toISOString().slice(0, 10);
+
 const cart             = ref([]);
+const planDate         = ref(todayStr);
 const downPaymentPct   = ref(30);
 const installmentCount = ref(3);
+const interestRate     = ref(props.defaultInterestRate);
+const graceEnabled     = ref(props.defaultGraceDays > 0);
+const dpGraceDays      = ref(props.defaultGraceDays > 0 ? props.defaultGraceDays : 7);
 const notes            = ref('');
 const submitting       = ref(false);
 const errorMsg         = ref('');
@@ -158,12 +159,64 @@ function updateQty(item, val) {
 }
 
 // ── Totals ─────────────────────────────────────────────────────────────────────
-const subtotal = computed(() => cart.value.reduce((s, i) => s + i.total, 0));
-const total    = computed(() => subtotal.value);
+const subtotal       = computed(() => cart.value.reduce((s, i) => s + i.total, 0));
+const interestAmount = computed(() => Math.round(subtotal.value * interestRate.value * 100) / 10000);
+const total          = computed(() => subtotal.value + interestAmount.value);
 
-const downPaymentAmt  = computed(() => Math.round(total.value * downPaymentPct.value) / 100);
-const balance         = computed(() => total.value - downPaymentAmt.value);
-const installmentAmt  = computed(() => installmentCount.value > 0 ? balance.value / installmentCount.value : 0);
+// downPaymentAmt = REQUIRED initial payment (% of total) — drives installment calculation
+const downPaymentAmt = ref(0);
+let _suppressPctWatch = false;
+
+// initialPaidAmt = what the customer actually hands over today (can be less than required)
+// Defaults to the full required amount; resets when required amount changes
+const initialPaidAmt     = ref(0);
+const gracePeriodBalance = computed(() => Math.max(0, r2(downPaymentAmt.value - initialPaidAmt.value)));
+
+// When total changes, recalculate required DP from the current percentage
+watch(total, (newTotal) => {
+    downPaymentAmt.value = r2(newTotal * downPaymentPct.value / 100);
+    initialPaidAmt.value = downPaymentAmt.value; // reset to full payment when cart changes
+});
+
+// When slider moves, recalculate required DP
+watch(downPaymentPct, (pct) => {
+    if (_suppressPctWatch) return;
+    downPaymentAmt.value = r2(total.value * pct / 100);
+    initialPaidAmt.value = downPaymentAmt.value; // reset to full payment when % changes
+});
+
+// Called when user edits the required DP amount directly
+function onDownPaymentAmtInput(raw) {
+    const amt = Math.min(Math.max(0, parseFloat(raw) || 0), total.value);
+    downPaymentAmt.value = r2(amt);
+    initialPaidAmt.value = downPaymentAmt.value; // reset initial paid to match new required
+    _suppressPctWatch = true;
+    downPaymentPct.value = total.value > 0
+        ? Math.min(90, Math.max(10, Math.round(amt / total.value * 100)))
+        : downPaymentPct.value;
+    _suppressPctWatch = false;
+}
+
+// Called when user types in the "Initial Payment Received" field
+function onInitialPaidInput(raw) {
+    const amt = Math.min(Math.max(0, parseFloat(raw) || 0), downPaymentAmt.value);
+    initialPaidAmt.value = r2(amt);
+}
+
+function r2(v) { return Math.round(v * 100) / 100; }
+
+// Balance for monthly installments = total − REQUIRED DP (not affected by initial paid amount)
+const balance        = computed(() => Math.max(0, r2(total.value - downPaymentAmt.value)));
+const installmentAmt = computed(() => installmentCount.value > 0 ? balance.value / installmentCount.value : 0);
+
+// Down payment due date = plan_date + grace days (or plan_date if no grace)
+const dpDueDate = computed(() => {
+    const d = new Date(planDate.value + 'T00:00:00');
+    if (graceEnabled.value && dpGraceDays.value > 0) {
+        d.setDate(d.getDate() + dpGraceDays.value);
+    }
+    return d.toISOString().slice(0, 10);
+});
 
 function fmt(v) {
     return 'Rs. ' + Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -172,17 +225,16 @@ function fmt(v) {
 // ── Schedule preview ───────────────────────────────────────────────────────────
 const schedule = computed(() => {
     const rows = [];
-    const today = new Date();
-    // Down payment
-    rows.push({ no: 0, label: 'Down Payment', due: today.toISOString().slice(0, 10), amount: downPaymentAmt.value });
+    const base = new Date(planDate.value + 'T00:00:00');
+    rows.push({ no: 0, label: t('inst.down_pmt_label'), due: dpDueDate.value, amount: downPaymentAmt.value });
     for (let i = 1; i <= installmentCount.value; i++) {
-        const d = new Date(today);
+        const d = new Date(base);
         d.setMonth(d.getMonth() + i);
         const isLast = i === installmentCount.value;
         const amt = isLast
             ? balance.value - (installmentAmt.value * (installmentCount.value - 1))
             : installmentAmt.value;
-        rows.push({ no: i, label: `Installment ${i}`, due: d.toISOString().slice(0, 10), amount: Math.round(amt * 100) / 100 });
+        rows.push({ no: i, label: `${t('nav.installments')} ${i}`, due: d.toISOString().slice(0, 10), amount: Math.round(amt * 100) / 100 });
     }
     return rows;
 });
@@ -206,11 +258,16 @@ function submit() {
             discount:     i.discount,
             total:        i.total,
         })),
+        plan_date:            planDate.value,
         subtotal:             subtotal.value,
         discount:             0,
         total:                total.value,
+        down_payment_amount:  downPaymentAmt.value,
         down_payment_percent: downPaymentPct.value,
+        initial_paid:         initialPaidAmt.value,
         installments_count:   installmentCount.value,
+        interest_rate:        interestRate.value,
+        dp_grace_days:        graceEnabled.value ? dpGraceDays.value : 0,
         notes:                notes.value,
     }, {
         onError: (errs) => {
@@ -223,7 +280,7 @@ function submit() {
 </script>
 
 <template>
-    <Head title="New Installment Plan" />
+    <Head :title="t('inst.new_plan')" />
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center gap-3">
@@ -232,7 +289,7 @@ function submit() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </Link>
-                <h1 class="text-xl font-bold text-gray-800">New Installment Plan</h1>
+                <h1 class="text-xl font-bold text-gray-800">{{ t('inst.new_plan') }}</h1>
             </div>
         </template>
 
@@ -241,9 +298,31 @@ function submit() {
             <!-- Left: items -->
             <div class="lg:col-span-2 space-y-4">
 
+                <!-- Plan Date (for backdating old records) -->
+                <div class="bg-white rounded-xl shadow-sm p-4 flex items-center gap-4" style="border:1px solid #E2E8F0;">
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span class="text-sm font-semibold text-gray-700">{{ t('inst.plan_date') }}</span>
+                    </div>
+                    <input
+                        v-model="planDate"
+                        type="date"
+                        :max="todayStr"
+                        class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <p v-if="planDate !== todayStr" class="text-xs text-orange-600 font-medium flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        </svg>
+                        {{ t('inst.plan_date_hint') }}
+                    </p>
+                </div>
+
                 <!-- Customer -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">Customer <span class="text-red-500">*</span></p>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">{{ t('inst.customer') }} <span class="text-red-500">*</span></p>
 
                     <!-- Selected badge -->
                     <div v-if="selectedCustomer" class="flex items-center gap-3 border border-blue-200 bg-blue-50 rounded-lg px-3 py-2 mb-2">
@@ -408,24 +487,40 @@ function submit() {
                                 <div class="px-3 py-1.5 text-xs font-semibold text-slate-500" style="background:#F8FAFC;">Recent Plans</div>
                                 <div class="divide-y" style="border-color:#F1F5F9;">
                                     <div v-for="p in customerHistory.plans.slice(0, 5)" :key="p.id"
-                                        class="flex items-center gap-3 px-3 py-2">
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex items-center gap-1.5">
-                                                <span class="text-xs font-mono font-bold text-blue-700">{{ p.plan_no }}</span>
-                                                <span class="text-xs px-1.5 py-0.5 rounded-full font-semibold"
-                                                    :class="{
-                                                        'bg-blue-100 text-blue-700':   p.status === 'active',
-                                                        'bg-green-100 text-green-700': p.status === 'completed',
-                                                        'bg-red-100 text-red-700':     p.status === 'defaulted',
-                                                        'bg-gray-100 text-gray-500':   p.status === 'cancelled',
-                                                    }">{{ p.status }}</span>
+                                        class="px-3 py-2">
+                                        <!-- Top row: plan no + status + amount -->
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <span class="text-xs font-mono font-bold text-blue-700">{{ p.plan_no }}</span>
+                                                    <span class="text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                                                        :class="{
+                                                            'bg-blue-100 text-blue-700':   p.status === 'active',
+                                                            'bg-green-100 text-green-700': p.status === 'completed',
+                                                            'bg-red-100 text-red-700':     p.status === 'defaulted',
+                                                            'bg-gray-100 text-gray-500':   p.status === 'cancelled',
+                                                        }">{{ p.status }}</span>
+                                                </div>
+                                                <p class="text-xs text-slate-400">{{ p.created_at }}</p>
                                             </div>
-                                            <p class="text-xs text-slate-400">{{ p.created_at }}</p>
+                                            <div class="text-right flex-shrink-0">
+                                                <p class="text-xs font-bold text-gray-700">{{ fmt(p.total) }}</p>
+                                                <p v-if="p.balance > 0" class="text-xs text-orange-500">{{ fmt(p.balance) }} left</p>
+                                                <p v-else class="text-xs text-green-500">Settled</p>
+                                            </div>
                                         </div>
-                                        <div class="text-right flex-shrink-0">
-                                            <p class="text-xs font-bold text-gray-700">{{ fmt(p.total) }}</p>
-                                            <p v-if="p.balance > 0" class="text-xs text-orange-500">{{ fmt(p.balance) }} left</p>
-                                            <p v-else class="text-xs text-green-500">Settled</p>
+                                        <!-- Payment habit row -->
+                                        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                                            <span v-if="p.on_time_count > 0"
+                                                class="inline-flex items-center gap-0.5 text-xs font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                                                ✓ {{ p.on_time_count }} on-time
+                                            </span>
+                                            <span v-if="p.late_count > 0"
+                                                class="inline-flex items-center gap-0.5 text-xs font-semibold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
+                                                ⚠ {{ p.late_count }} late
+                                            </span>
+                                            <span v-if="p.on_time_count === 0 && p.late_count === 0 && p.total_payments > 0"
+                                                class="text-xs text-slate-400">No payments yet</span>
                                         </div>
                                     </div>
                                 </div>
@@ -436,7 +531,7 @@ function submit() {
 
                 <!-- Product search -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">Add Items</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">{{ t('inst.add_items') }}</p>
                     <div class="relative">
                         <input
                             v-model="searchQuery"
@@ -510,8 +605,8 @@ function submit() {
 
                 <!-- Notes -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">Notes</p>
-                    <textarea v-model="notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Optional notes…"></textarea>
+                    <p class="text-sm font-semibold text-gray-700 mb-2">{{ t('inst.notes') }}</p>
+                    <textarea v-model="notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" :placeholder="t('lbl.optional') + '…'"></textarea>
                 </div>
             </div>
 
@@ -520,17 +615,70 @@ function submit() {
 
                 <!-- Plan settings -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-3">Plan Settings</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-3">{{ t('inst.plan_settings') }}</p>
                     <div class="space-y-3">
+
+                        <!-- Down payment — required % + editable amount -->
                         <div>
-                            <label class="block text-xs text-slate-500 mb-1">Down Payment %</label>
-                            <div class="flex items-center gap-2">
+                            <label class="block text-xs text-slate-500 mb-1">{{ t('inst.dp_percent') }}</label>
+                            <!-- Slider row -->
+                            <div class="flex items-center gap-2 mb-1.5">
                                 <input type="range" v-model.number="downPaymentPct" min="10" max="90" step="5" class="flex-1" />
                                 <span class="text-sm font-bold text-blue-700 w-10 text-right">{{ downPaymentPct }}%</span>
                             </div>
+                            <!-- Required DP amount -->
+                            <div class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background:#EFF6FF; border:1px solid #BFDBFE;">
+                                <span class="text-xs font-semibold text-blue-600 flex-shrink-0">Rs.</span>
+                                <input
+                                    type="number"
+                                    :value="downPaymentAmt"
+                                    min="0"
+                                    :max="total"
+                                    step="1"
+                                    class="flex-1 bg-transparent text-sm font-bold text-blue-700 focus:outline-none min-w-0"
+                                    @change="e => onDownPaymentAmtInput(e.target.value)"
+                                    @blur="e => onDownPaymentAmtInput(e.target.value)"
+                                />
+                                <span class="text-xs text-blue-400 flex-shrink-0">/ {{ fmt(total) }}</span>
+                            </div>
+
+                            <!-- Initial payment received today (can be less than required) -->
+                            <div class="mt-2">
+                                <label class="block text-xs text-slate-500 mb-1">{{ t('inst.initial_received') }}</label>
+                                <div class="flex items-center gap-2 rounded-lg px-2 py-1.5" style="background:#F0FDF4; border:1px solid #86EFAC;">
+                                    <span class="text-xs font-semibold text-green-600 flex-shrink-0">Rs.</span>
+                                    <input
+                                        type="number"
+                                        :value="initialPaidAmt"
+                                        min="0"
+                                        :max="downPaymentAmt"
+                                        step="1"
+                                        class="flex-1 bg-transparent text-sm font-bold text-green-700 focus:outline-none min-w-0"
+                                        @change="e => onInitialPaidInput(e.target.value)"
+                                        @blur="e => onInitialPaidInput(e.target.value)"
+                                    />
+                                    <span class="text-xs text-green-400 flex-shrink-0">/ {{ fmt(downPaymentAmt) }}</span>
+                                </div>
+                                <!-- Grace balance (shown when customer pays less than required) -->
+                                <div v-if="gracePeriodBalance > 0"
+                                    class="mt-1.5 flex items-center justify-between rounded-lg px-2 py-1.5 text-xs"
+                                    style="background:#FFF7ED; border:1px solid #FED7AA;">
+                                    <div class="flex items-center gap-1.5 text-orange-700">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>{{ t('inst.grace_balance') }}
+                                            <span v-if="graceEnabled"> ({{ dpGraceDays }}d)</span>
+                                        </span>
+                                    </div>
+                                    <span class="font-bold text-orange-700">{{ fmt(gracePeriodBalance) }}</span>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Installment count -->
                         <div>
-                            <label class="block text-xs text-slate-500 mb-1">Number of Installments</label>
+                            <label class="block text-xs text-slate-500 mb-1">{{ t('inst.inst_count') }}</label>
                             <div class="flex gap-2">
                                 <button
                                     v-for="n in [2, 3, 6, 12]" :key="n"
@@ -543,25 +691,84 @@ function submit() {
                                 >{{ n }}</button>
                             </div>
                         </div>
+
+                        <!-- Interest rate -->
+                        <div class="pt-2 border-t" style="border-color:#E2E8F0;">
+                            <label class="block text-xs text-slate-500 mb-1">{{ t('inst.interest_rate') }}</label>
+                            <div class="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    v-model.number="interestRate"
+                                    min="0" max="100" step="0.5"
+                                    class="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-300"
+                                />
+                                <span class="text-xs text-slate-500">
+                                    % — {{ t('inst.interest_adds') }} {{ fmt(interestAmount) }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Down payment grace period — optional toggle -->
+                        <div class="pt-1">
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="text-xs text-slate-500">{{ t('inst.grace_period') }}</label>
+                                <!-- Toggle -->
+                                <button
+                                    type="button"
+                                    @click="graceEnabled = !graceEnabled"
+                                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0"
+                                    :style="graceEnabled ? 'background:#2563EB;' : 'background:#D1D5DB;'"
+                                >
+                                    <span
+                                        class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
+                                        :class="graceEnabled ? 'translate-x-4' : 'translate-x-1'"
+                                    ></span>
+                                </button>
+                            </div>
+                            <div v-if="graceEnabled" class="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    v-model.number="dpGraceDays"
+                                    min="1" max="365" step="1"
+                                    class="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                />
+                                <span class="text-xs text-slate-500">
+                                    {{ t('inst.grace_days') }} — {{ t('inst.grace_due_by') }}: <strong>{{ dpDueDate }}</strong>
+                                </span>
+                            </div>
+                            <p v-else class="text-xs text-slate-400 italic">{{ t('inst.no_grace') }}</p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Payment schedule preview -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-3">Payment Schedule</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-3">{{ t('inst.schedule') }}</p>
 
                     <div class="space-y-2 mb-4">
                         <div class="flex justify-between text-xs text-slate-500">
-                            <span>Total Value</span><span class="font-semibold text-gray-800">{{ fmt(total) }}</span>
+                            <span>{{ t('inst.items_subtotal') }}</span>
+                            <span class="font-semibold text-gray-800">{{ fmt(subtotal) }}</span>
+                        </div>
+                        <div v-if="interestRate > 0" class="flex justify-between text-xs text-slate-500">
+                            <span class="text-orange-600">{{ t('inst.interest_label') }} ({{ interestRate }}%)</span>
+                            <span class="font-semibold text-orange-600">+ {{ fmt(interestAmount) }}</span>
+                        </div>
+                        <div class="flex justify-between text-xs border-t pt-2" style="border-color:#E2E8F0;">
+                            <span class="font-bold text-gray-700">{{ t('inst.total_financed') }}</span>
+                            <span class="font-bold text-gray-800">{{ fmt(total) }}</span>
                         </div>
                         <div class="flex justify-between text-xs text-slate-500">
-                            <span>Down Payment ({{ downPaymentPct }}%)</span><span class="font-semibold text-blue-700">{{ fmt(downPaymentAmt) }}</span>
+                            <span>{{ t('inst.down_payment') }} ({{ downPaymentPct }}%)</span>
+                            <span class="font-semibold text-blue-700">{{ fmt(downPaymentAmt) }}</span>
                         </div>
                         <div class="flex justify-between text-xs text-slate-500">
-                            <span>Balance</span><span class="font-semibold text-orange-600">{{ fmt(balance) }}</span>
+                            <span>{{ t('inst.balance') }}</span>
+                            <span class="font-semibold text-orange-600">{{ fmt(balance) }}</span>
                         </div>
                         <div class="flex justify-between text-xs text-slate-500 border-t pt-2" style="border-color:#E2E8F0;">
-                            <span>Per Installment (~)</span><span class="font-semibold text-gray-700">{{ fmt(installmentAmt) }}</span>
+                            <span>{{ t('inst.per_installment') }}</span>
+                            <span class="font-semibold text-gray-700">{{ fmt(installmentAmt) }}</span>
                         </div>
                     </div>
 
@@ -576,6 +783,11 @@ function submit() {
                             <div class="flex-1">
                                 <p class="font-semibold text-gray-700">{{ row.label }}</p>
                                 <p class="text-slate-400">Due: {{ row.due }}</p>
+                                <!-- Show initial paid / grace balance breakdown for down payment -->
+                                <template v-if="row.no === 0 && gracePeriodBalance > 0">
+                                    <p class="text-green-600">Paid now: {{ fmt(initialPaidAmt) }}</p>
+                                    <p class="text-orange-500">Grace: {{ fmt(gracePeriodBalance) }}</p>
+                                </template>
                             </div>
                             <span class="font-bold" :class="row.no === 0 ? 'text-blue-700' : 'text-gray-700'">{{ fmt(row.amount) }}</span>
                         </div>
@@ -592,7 +804,7 @@ function submit() {
                     class="w-full py-3 rounded-xl text-white font-bold text-sm transition-colors disabled:opacity-50"
                     style="background-color:#2563EB;"
                 >
-                    {{ submitting ? 'Creating Plan…' : 'Create Installment Plan' }}
+                    {{ submitting ? t('inst.creating') : t('inst.create_btn') }}
                 </button>
             </div>
         </div>

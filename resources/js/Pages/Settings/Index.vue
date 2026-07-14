@@ -74,6 +74,8 @@ const form = useForm({
                                ? true
                                : (props.settings.pos_auto_scale === '1' || props.settings.pos_auto_scale === true),
         pos_scale_value:   props.settings.pos_scale_value || '100',
+        installment_interest_rate: props.settings.installment_interest_rate ?? '10',
+        installment_dp_grace_days: props.settings.installment_dp_grace_days ?? '7',
     },
 });
 
@@ -313,6 +315,51 @@ async function runMigrations() {
                         <div>
                             <label class="block mb-1 text-sm font-medium" style="color:#334155;">{{ t('set.receipt_footer') }}</label>
                             <textarea v-model="form.settings.receipt_footer" rows="3" class="w-full rounded-lg px-3 py-2 text-sm outline-none resize-none" style="border:1px solid #E2E8F0; color:#0F172A;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Installment Settings card -->
+                    <div class="bg-white rounded-xl shadow-sm p-5 space-y-4" style="border:1px solid #E2E8F0;">
+                        <h2 class="font-semibold text-[15px]" style="color:#0F172A; border-bottom:1px solid #E2E8F0; padding-bottom:10px;">
+                            Installment Defaults
+                        </h2>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <!-- Interest / Markup % -->
+                            <div>
+                                <label class="block mb-1 text-sm font-medium" style="color:#334155;">
+                                    Interest / Markup %
+                                </label>
+                                <input
+                                    v-model="form.settings.installment_interest_rate"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.5"
+                                    class="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                                    style="border:1px solid #E2E8F0; color:#0F172A;"
+                                    placeholder="10"
+                                />
+                                <p class="text-xs mt-1" style="color:#94A3B8;">Added on top of item total. 0 = no charge.</p>
+                            </div>
+
+                            <!-- Down Payment Grace Period -->
+                            <div>
+                                <label class="block mb-1 text-sm font-medium" style="color:#334155;">
+                                    Down Payment Grace (days)
+                                </label>
+                                <input
+                                    v-model="form.settings.installment_dp_grace_days"
+                                    type="number"
+                                    min="0"
+                                    max="365"
+                                    step="1"
+                                    class="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                                    style="border:1px solid #E2E8F0; color:#0F172A;"
+                                    placeholder="7"
+                                />
+                                <p class="text-xs mt-1" style="color:#94A3B8;">Days a customer has to settle the down payment. Default: 7.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -55,8 +55,21 @@ class InstallmentController extends Controller
             ->latest()
             ->get()
             ->map(function ($plan) {
-                $paid     = $plan->payments->sum('amount_paid');
-                $overdue  = $plan->payments->where('status', 'overdue');
+                $paid    = $plan->payments->sum('amount_paid');
+                $overdue = $plan->payments->where('status', 'overdue');
+
+                // Payments settled after their due date (historically late, now paid)
+                $paidLate = $plan->payments->filter(
+                    fn ($p) => $p->status === 'paid' && $p->paid_at && $p->due_date
+                               && $p->paid_at->gt($p->due_date)
+                );
+
+                // Payments settled on or before due date
+                $paidOnTime = $plan->payments->filter(
+                    fn ($p) => $p->status === 'paid' && $p->paid_at && $p->due_date
+                               && !$p->paid_at->gt($p->due_date)
+                );
+
                 return [
                     'id'             => $plan->id,
                     'plan_no'        => $plan->plan_no,
@@ -67,6 +80,9 @@ class InstallmentController extends Controller
                     'created_at'     => $plan->created_at->toDateString(),
                     'overdue_count'  => $overdue->count(),
                     'overdue_amount' => $overdue->sum(fn ($p) => $p->amount_due - $p->amount_paid),
+                    'late_count'     => $paidLate->count() + $overdue->count(), // ever-late + currently overdue
+                    'on_time_count'  => $paidOnTime->count(),
+                    'total_payments' => $plan->payments->count(),
                 ];
             });
 
@@ -105,9 +121,12 @@ class InstallmentController extends Controller
     public function create()
     {
         $customers = Customer::where('active', true)->orderBy('name')->get();
+        $settings  = \App\Models\Setting::all()->pluck('value', 'key')->toArray();
 
         return Inertia::render('Installments/Create', [
-            'customers' => $customers,
+            'customers'        => $customers,
+            'defaultInterestRate' => (float) ($settings['installment_interest_rate'] ?? 10),
+            'defaultGraceDays'    => (int)   ($settings['installment_dp_grace_days'] ?? 7),
         ])->with(['flash' => session('flash')]);
     }
 
@@ -125,30 +144,62 @@ class InstallmentController extends Controller
             'subtotal'                 => 'required|numeric|min:0',
             'discount'                 => 'nullable|numeric|min:0',
             'total'                    => 'required|numeric|min:0',
+            'down_payment_amount'      => 'nullable|numeric|min:0',
             'down_payment_percent'     => 'required|integer|min:1|max:100',
             'installments_count'       => 'required|integer|min:1|max:12',
+            'interest_rate'            => 'nullable|numeric|min:0|max:100',
+            'dp_grace_days'            => 'nullable|integer|min:0|max:365',
+            'initial_paid'             => 'nullable|numeric|min:0',
+            'plan_date'                => 'nullable|date',
             'notes'                    => 'nullable|string',
         ]);
 
         $plan = DB::transaction(function () use ($request) {
-            $total              = (float) $request->total;
-            $dpPct              = (int)   $request->down_payment_percent;
-            $count              = (int)   $request->installments_count;
-            $downPayment        = round($total * $dpPct / 100, 2);
-            $balance            = round($total - $downPayment, 2);
-            $installmentAmount  = $count > 0 ? round($balance / $count, 2) : 0;
+            $settings         = \App\Models\Setting::all()->pluck('value', 'key');
+            $interestRate     = (float) ($request->interest_rate ?? $settings->get('installment_interest_rate', 10));
+            $dpGraceDays      = (int)   ($request->dp_grace_days ?? $settings->get('installment_dp_grace_days', 7));
 
-            // Plan number
-            $date     = Carbon::now()->format('Ymd');
-            $last     = InstallmentPlan::whereDate('created_at', today())->lockForUpdate()->orderByDesc('id')->first();
-            $seq      = $last ? (intval(substr($last->plan_no, -4)) + 1) : 1;
-            $planNo   = 'IP-' . $date . '-' . str_pad($seq, 4, '0', STR_PAD_LEFT);
+            // Use provided plan_date (for backdating) or today
+            $planDate = $request->filled('plan_date')
+                ? Carbon::parse($request->plan_date)
+                : Carbon::today();
+
+            $subtotal         = (float) $request->subtotal;
+            $interestAmount   = round($subtotal * $interestRate / 100, 2);
+            $total            = round($subtotal + $interestAmount - ($request->discount ?? 0), 2);
+
+            $count = (int) $request->installments_count;
+
+            // Use the exact amount if provided by the frontend; otherwise derive from percentage
+            if ($request->filled('down_payment_amount')) {
+                $downPayment = round(min((float) $request->down_payment_amount, $total), 2);
+                $dpPct       = $total > 0 ? (int) round($downPayment / $total * 100) : (int) $request->down_payment_percent;
+            } else {
+                $dpPct       = (int) $request->down_payment_percent;
+                $downPayment = round($total * $dpPct / 100, 2);
+            }
+
+            $balance           = round($total - $downPayment, 2);
+            $installmentAmount = $count > 0 ? round($balance / $count, 2) : 0;
+
+            // Plan number uses plan_date so backdated plans get the correct date prefix
+            $dateStr = $planDate->format('Ymd');
+            $last    = InstallmentPlan::whereDate('plan_date', $planDate->toDateString())
+                ->lockForUpdate()->orderByDesc('id')->first();
+            if (!$last) {
+                // Fallback: check by plan_no prefix for that date
+                $last = InstallmentPlan::where('plan_no', 'like', "IP-{$dateStr}-%")
+                    ->lockForUpdate()->orderByDesc('id')->first();
+            }
+            $seq    = $last ? (intval(substr($last->plan_no, -4)) + 1) : 1;
+            $planNo = 'IP-' . $dateStr . '-' . str_pad($seq, 4, '0', STR_PAD_LEFT);
 
             $plan = InstallmentPlan::create([
                 'plan_no'              => $planNo,
+                'plan_date'            => $planDate->toDateString(),
                 'customer_id'          => $request->customer_id,
                 'user_id'              => Auth::id(),
-                'subtotal'             => $request->subtotal,
+                'subtotal'             => $subtotal,
                 'discount'             => $request->discount ?? 0,
                 'total'                => $total,
                 'down_payment'         => $downPayment,
@@ -156,6 +207,9 @@ class InstallmentController extends Controller
                 'installment_amount'   => $installmentAmount,
                 'installments_count'   => $count,
                 'down_payment_percent' => $dpPct,
+                'interest_rate'        => $interestRate,
+                'interest_amount'      => $interestAmount,
+                'dp_grace_days'        => $dpGraceDays,
                 'notes'                => $request->notes,
                 'status'               => 'active',
             ]);
@@ -192,20 +246,32 @@ class InstallmentController extends Controller
                 ]);
             }
 
+            // Initial payment actually received today (can be less than required down payment)
+            $initialPaid = isset($request->initial_paid)
+                ? round(min(max(0, (float) $request->initial_paid), $downPayment), 2)
+                : $downPayment; // default: full down payment received
+
+            $dpStatus = $initialPaid >= $downPayment ? 'paid'
+                : ($initialPaid > 0 ? 'partial' : 'pending');
+
             // Payment schedule rows
-            // #0 = down payment (due today)
+            // #0 = down payment — grace period to settle the remaining balance
             InstallmentPayment::create([
                 'plan_id'        => $plan->id,
                 'installment_no' => 0,
-                'due_date'       => today(),
+                'due_date'       => $dpGraceDays > 0
+                    ? $planDate->copy()->addDays($dpGraceDays)
+                    : $planDate->copy(),
                 'amount_due'     => $downPayment,
-                'amount_paid'    => 0,
-                'status'         => 'pending',
+                'amount_paid'    => $initialPaid,
+                'paid_at'        => $initialPaid > 0 ? $planDate->copy() : null,
+                'payment_method' => $initialPaid > 0 ? 'cash' : null,
+                'status'         => $dpStatus,
+                'collected_by'   => $initialPaid > 0 ? \Illuminate\Support\Facades\Auth::id() : null,
             ]);
 
-            // #1, #2, #3 = monthly installments
+            // #1, #2, … = monthly installments from plan_date
             for ($i = 1; $i <= $count; $i++) {
-                // Last installment absorbs rounding difference
                 $due = $i === $count
                     ? $balance - ($installmentAmount * ($count - 1))
                     : $installmentAmount;
@@ -213,7 +279,7 @@ class InstallmentController extends Controller
                 InstallmentPayment::create([
                     'plan_id'        => $plan->id,
                     'installment_no' => $i,
-                    'due_date'       => today()->addMonths($i),
+                    'due_date'       => $planDate->copy()->addMonths($i),
                     'amount_due'     => round($due, 2),
                     'amount_paid'    => 0,
                     'status'         => 'pending',
@@ -263,27 +329,97 @@ class InstallmentController extends Controller
             return back()->withErrors(['error' => 'This installment is already paid.']);
         }
 
-        $newPaid = $payment->amount_paid + (float) $request->amount_paid;
-        $status  = $newPaid >= $payment->amount_due ? 'paid' : 'partial';
+        $amountPaid = (float) $request->amount_paid;
+        $newPaid    = $payment->amount_paid + $amountPaid;
+        $excess     = max(0, $newPaid - $payment->amount_due);
 
         $payment->update([
             'amount_paid'    => min($newPaid, $payment->amount_due),
-            'paid_at'        => $status === 'paid' ? now() : $payment->paid_at,
+            'paid_at'        => $newPaid >= $payment->amount_due ? now() : $payment->paid_at,
             'payment_method' => $request->payment_method,
             'reference'      => $request->reference,
             'notes'          => $request->notes,
-            'status'         => $status,
+            'status'         => $newPaid >= $payment->amount_due ? 'paid' : 'partial',
             'collected_by'   => Auth::id(),
         ]);
 
+        // Apply excess to the next unpaid installment
+        if ($excess > 0) {
+            $next = InstallmentPayment::where('plan_id', $planId)
+                ->whereIn('status', ['pending', 'partial', 'overdue'])
+                ->where('installment_no', '>', $payment->installment_no)
+                ->orderBy('installment_no')
+                ->first();
+
+            if ($next) {
+                $nextNewPaid = $next->amount_paid + $excess;
+                $next->update([
+                    'amount_paid'    => min($nextNewPaid, $next->amount_due),
+                    'paid_at'        => $nextNewPaid >= $next->amount_due ? now() : $next->paid_at,
+                    'payment_method' => $request->payment_method,
+                    'reference'      => $request->reference,
+                    'notes'          => 'Carry-over from ' . ($payment->installment_no === 0 ? 'down payment' : 'installment ' . $payment->installment_no),
+                    'status'         => $nextNewPaid >= $next->amount_due ? 'paid' : 'partial',
+                    'collected_by'   => Auth::id(),
+                ]);
+            }
+        }
+
         // Check if all payments are done → complete the plan
-        $plan     = InstallmentPlan::with('payments')->findOrFail($planId);
-        $allPaid  = $plan->payments->every(fn ($p) => $p->status === 'paid');
+        $plan    = InstallmentPlan::with('payments')->findOrFail($planId);
+        $allPaid = $plan->payments->every(fn ($p) => $p->status === 'paid');
         if ($allPaid) {
             $plan->update(['status' => 'completed']);
         }
 
-        return back()->with('success', 'Payment recorded successfully.');
+        $msg = 'Payment recorded successfully.';
+        if ($excess > 0) {
+            $msg .= " Excess Rs. " . number_format($excess, 2) . " applied to next installment.";
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    public function settleAll(Request $request, string $planId)
+    {
+        $request->validate([
+            'payment_method' => 'required|string|in:cash,card,qr',
+            'reference'      => 'nullable|string|max:100',
+            'notes'          => 'nullable|string',
+        ]);
+
+        $plan = InstallmentPlan::with('payments')->findOrFail($planId);
+
+        if ($plan->status === 'completed') {
+            return back()->withErrors(['error' => 'This plan is already completed.']);
+        }
+
+        $totalSettled = 0;
+
+        DB::transaction(function () use ($plan, $request, &$totalSettled) {
+            foreach ($plan->payments as $payment) {
+                if ($payment->status === 'paid') continue;
+
+                $remaining = $payment->amount_due - $payment->amount_paid;
+                if ($remaining <= 0) continue;
+
+                $totalSettled += $remaining;
+
+                $payment->update([
+                    'amount_paid'    => $payment->amount_due,
+                    'paid_at'        => now(),
+                    'payment_method' => $request->payment_method,
+                    'reference'      => $request->reference,
+                    'notes'          => $request->notes ?: 'Full settlement',
+                    'status'         => 'paid',
+                    'collected_by'   => Auth::id(),
+                ]);
+            }
+
+            $plan->update(['status' => 'completed']);
+        });
+
+        return back()->with('success', 'Plan fully settled. Rs. ' . number_format($totalSettled, 2) . ' recorded.');
     }
 
     public function uploadDocument(Request $request, string $id)

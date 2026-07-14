@@ -44,6 +44,13 @@ function nextDue(plan) {
     return pending ? pending.due_date : null;
 }
 
+function fmtDate(val) {
+    if (!val) return null;
+    const d = new Date(val);
+    if (isNaN(d)) return String(val).slice(0, 10);
+    return d.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: '2-digit' });
+}
+
 function isOverdue(dateStr) {
     return dateStr && new Date(dateStr) < new Date(new Date().toDateString());
 }
@@ -112,7 +119,7 @@ function isOverdue(dateStr) {
                         </td>
                         <td class="px-4 py-3">
                             <span v-if="nextDue(plan)" :class="isOverdue(nextDue(plan)) ? 'text-red-600 font-semibold' : 'text-slate-600'">
-                                {{ nextDue(plan) }}
+                                {{ fmtDate(nextDue(plan)) }}
                                 <span v-if="isOverdue(nextDue(plan))" class="ml-1 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">Overdue</span>
                             </span>
                             <span v-else class="text-slate-400">—</span>

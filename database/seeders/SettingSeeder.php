@@ -25,7 +25,9 @@ class SettingSeeder extends Seeder
             'enable_promotions'   => '0',
             'logo'               => '',
             'demo_mode'          => '0',
-            'printer_name'       => '',
+            'printer_name'                => '',
+            'installment_interest_rate'   => '10',
+            'installment_dp_grace_days'   => '7',
         ];
 
         foreach ($defaults as $key => $value) {

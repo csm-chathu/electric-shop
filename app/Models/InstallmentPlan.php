@@ -7,14 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class InstallmentPlan extends Model
 {
     protected $fillable = [
-        'plan_no', 'customer_id', 'user_id',
+        'plan_no', 'plan_date', 'customer_id', 'user_id',
         'subtotal', 'discount', 'total',
         'down_payment', 'balance', 'installment_amount',
         'installments_count', 'down_payment_percent',
+        'interest_rate', 'interest_amount', 'dp_grace_days',
         'status', 'notes',
     ];
 
     protected $casts = [
+        'plan_date'           => 'date',
         'total'               => 'float',
         'subtotal'            => 'float',
         'discount'            => 'float',
@@ -23,6 +25,9 @@ class InstallmentPlan extends Model
         'installment_amount'  => 'float',
         'installments_count'  => 'integer',
         'down_payment_percent'=> 'integer',
+        'interest_rate'       => 'float',
+        'interest_amount'     => 'float',
+        'dp_grace_days'       => 'integer',
     ];
 
     public function customer()    { return $this->belongsTo(Customer::class); }

@@ -1,7 +1,9 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
+import { ref, computed, inject } from 'vue';
+
+const t = inject('t');
 
 const props = defineProps({
     plan:     { type: Object, required: true },
@@ -30,6 +32,43 @@ function openPay(payment) {
     payMethod.value   = 'cash';
     payRef.value      = '';
     payNotes.value    = '';
+}
+
+const payExcess = computed(() => {
+    const amt = parseFloat(payAmount.value) || 0;
+    const due = payModal.value ? (payModal.value.amount_due - payModal.value.amount_paid) : 0;
+    return Math.max(0, amt - due);
+});
+
+// ── Settle-all modal ─────────────────────────────────────────────────────────
+const settleModal      = ref(false);
+const settleMethod     = ref('cash');
+const settleRef        = ref('');
+const settleNotes      = ref('');
+const settleSubmitting = ref(false);
+
+const remainingBalance = computed(() =>
+    props.plan.payments?.reduce((s, p) => s + Math.max(0, Number(p.amount_due) - Number(p.amount_paid)), 0) ?? 0
+);
+
+function openSettle() {
+    settleMethod.value = 'cash';
+    settleRef.value    = '';
+    settleNotes.value  = '';
+    settleModal.value  = true;
+}
+
+function submitSettle() {
+    if (settleSubmitting.value) return;
+    settleSubmitting.value = true;
+    router.post(route('installments.settle-all', props.plan.id), {
+        payment_method: settleMethod.value,
+        reference:      settleRef.value,
+        notes:          settleNotes.value,
+    }, {
+        onSuccess: () => { settleModal.value = false; },
+        onFinish:  () => { settleSubmitting.value = false; },
+    });
 }
 
 function closePay() { payModal.value = null; }
@@ -115,6 +154,13 @@ function fmt(v) {
     return 'Rs. ' + Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function fmtDate(val) {
+    if (!val) return '—';
+    const d = new Date(val);
+    if (isNaN(d)) return String(val).slice(0, 10);
+    return d.toLocaleDateString('en-LK', { year: 'numeric', month: 'short', day: '2-digit' });
+}
+
 function isOverdue(dateStr) {
     return dateStr && new Date(dateStr) < new Date(new Date().toDateString());
 }
@@ -135,6 +181,22 @@ const paymentStatus = {
 
 const totalPaid = computed(() => props.plan.payments?.reduce((s, p) => s + Number(p.amount_paid || 0), 0) ?? 0);
 const balance   = computed(() => Number(props.plan.total) - totalPaid.value);
+
+// Grace period: the down payment row (installment_no=0) may be partially paid at plan creation
+const dpPayment = computed(() => props.plan.payments?.find(p => p.installment_no === 0) ?? null);
+const graceBalance = computed(() => {
+    const dp = dpPayment.value;
+    if (!dp || dp.status === 'paid') return 0;
+    return Math.max(0, Number(dp.amount_due) - Number(dp.amount_paid));
+});
+const graceDaysLeft = computed(() => {
+    const dp = dpPayment.value;
+    if (!dp || dp.status === 'paid' || !dp.due_date) return null;
+    const due  = new Date(dp.due_date);
+    const now  = new Date(new Date().toDateString()); // midnight today
+    const diff = Math.ceil((due - now) / 86400000);
+    return diff;
+});
 
 const typeLabel = {
     nic_front:     'NIC Front',
@@ -177,14 +239,26 @@ function thumbUrl(url) {
                         {{ (statusMeta[plan.status] || statusMeta.active).label }}
                     </span>
                 </div>
-                <button v-if="isAdmin" @click="deletePlan"
-                    class="flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
-                    style="background-color:#7F1D1D;">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Cancel Plan
-                </button>
+                <div class="flex items-center gap-2">
+                    <!-- Full settlement button (shown when plan is active and has balance) -->
+                    <button v-if="plan.status === 'active' && remainingBalance > 0"
+                        @click="openSettle"
+                        class="flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                        style="background-color:#15803D;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ t('inst.settle_all') }}
+                    </button>
+                    <button v-if="isAdmin" @click="deletePlan"
+                        class="flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                        style="background-color:#7F1D1D;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        {{ t('inst.cancel_plan') }}
+                    </button>
+                </div>
             </div>
         </template>
 
@@ -214,6 +288,51 @@ function thumbUrl(url) {
                     </div>
                 </div>
 
+                <!-- Grace Period Alert — shown when the down payment is partially paid -->
+                <div v-if="graceBalance > 0 && plan.status === 'active'"
+                    class="rounded-xl px-4 py-3 flex items-start gap-3"
+                    :style="graceDaysLeft !== null && graceDaysLeft < 0
+                        ? 'background:#FFF5F5; border:1px solid #FECACA;'
+                        : 'background:#FFF7ED; border:1px solid #FED7AA;'">
+                    <div class="flex-shrink-0 mt-0.5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" :class="graceDaysLeft !== null && graceDaysLeft < 0 ? 'text-red-500' : 'text-orange-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold" :class="graceDaysLeft !== null && graceDaysLeft < 0 ? 'text-red-700' : 'text-orange-700'">
+                            {{ t('inst.grace_balance') }}
+                            <span v-if="graceDaysLeft !== null && graceDaysLeft < 0" class="ml-2 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">Overdue</span>
+                        </p>
+                        <div class="mt-1 flex flex-wrap gap-3 text-xs">
+                            <div>
+                                <span class="text-slate-500">{{ t('inst.initial_received') }}:</span>
+                                <span class="ml-1 font-semibold text-green-700">{{ fmt(dpPayment?.amount_paid) }}</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Pending:</span>
+                                <span class="ml-1 font-bold" :class="graceDaysLeft !== null && graceDaysLeft < 0 ? 'text-red-700' : 'text-orange-700'">{{ fmt(graceBalance) }}</span>
+                            </div>
+                            <div v-if="dpPayment?.due_date">
+                                <span class="text-slate-500">Due by:</span>
+                                <span class="ml-1 font-semibold text-gray-700">{{ fmtDate(dpPayment.due_date) }}</span>
+                            </div>
+                            <div v-if="graceDaysLeft !== null">
+                                <span class="font-semibold" :class="graceDaysLeft < 0 ? 'text-red-600' : graceDaysLeft <= 2 ? 'text-orange-600' : 'text-slate-600'">
+                                    {{ graceDaysLeft < 0 ? Math.abs(graceDaysLeft) + ' days overdue' : graceDaysLeft === 0 ? 'Due today' : graceDaysLeft + ' days left' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Quick-pay grace balance -->
+                    <button v-if="dpPayment && dpPayment.status !== 'paid'"
+                        @click="openPay(dpPayment)"
+                        class="flex-shrink-0 text-xs text-white font-semibold px-3 py-1.5 rounded-lg"
+                        :style="graceDaysLeft !== null && graceDaysLeft < 0 ? 'background:#DC2626;' : 'background:#D97706;'">
+                        Pay
+                    </button>
+                </div>
+
                 <!-- Payment schedule -->
                 <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
                     <div class="px-4 py-3 border-b" style="border-color:#E2E8F0; background:#F8FAFC;">
@@ -231,14 +350,25 @@ function thumbUrl(url) {
 
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-semibold text-gray-800">
-                                    {{ payment.installment_no === 0 ? 'Down Payment' : `Installment ${payment.installment_no}` }}
+                                    {{ payment.installment_no === 0 ? t('inst.down_pmt_label') : `${t('nav.installments')} ${payment.installment_no}` }}
                                 </p>
                                 <p class="text-xs" :class="isOverdue(payment.due_date) && payment.status !== 'paid' ? 'text-red-500 font-semibold' : 'text-slate-400'">
-                                    Due: {{ payment.due_date }}
+                                    Due: {{ fmtDate(payment.due_date) }}
                                     <span v-if="isOverdue(payment.due_date) && payment.status !== 'paid'" class="ml-1">⚠ Overdue</span>
                                 </p>
-                                <p v-if="payment.amount_paid > 0" class="text-xs text-green-600">Paid: {{ fmt(payment.amount_paid) }}</p>
-                                <p v-if="payment.paid_at" class="text-xs text-slate-400">{{ payment.paid_at?.substring(0, 10) }} via {{ payment.payment_method }}</p>
+                                <!-- For down payment: show initial received + grace balance separately -->
+                                <template v-if="payment.installment_no === 0 && payment.status !== 'paid'">
+                                    <p v-if="payment.amount_paid > 0" class="text-xs text-green-600">
+                                        {{ t('inst.initial_received') }}: {{ fmt(payment.amount_paid) }}
+                                    </p>
+                                    <p v-if="payment.amount_due - payment.amount_paid > 0" class="text-xs text-orange-600">
+                                        {{ t('inst.grace_balance') }}: {{ fmt(payment.amount_due - payment.amount_paid) }}
+                                    </p>
+                                </template>
+                                <template v-else>
+                                    <p v-if="payment.amount_paid > 0" class="text-xs text-green-600">Paid: {{ fmt(payment.amount_paid) }}</p>
+                                </template>
+                                <p v-if="payment.paid_at" class="text-xs text-slate-400">{{ fmtDate(payment.paid_at) }} via {{ payment.payment_method }}</p>
                             </div>
 
                             <div class="text-right flex-shrink-0">
@@ -296,39 +426,51 @@ function thumbUrl(url) {
 
                 <!-- Plan info -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-3">Plan Details</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-3">{{ t('inst.plan_details') }}</p>
                     <div class="space-y-2 text-xs">
                         <div class="flex justify-between">
                             <span class="text-slate-500">Plan No</span>
                             <span class="font-mono font-bold text-blue-700">{{ plan.plan_no }}</span>
                         </div>
+                        <div v-if="plan.plan_date" class="flex justify-between">
+                            <span class="text-slate-500">{{ t('inst.plan_date') }}</span>
+                            <span class="text-gray-700">{{ fmtDate(plan.plan_date) }}</span>
+                        </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Customer</span>
+                            <span class="text-slate-500">{{ t('inst.customer') }}</span>
                             <span class="font-semibold text-gray-700">{{ plan.customer?.name }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Phone</span>
+                            <span class="text-slate-500">{{ t('th.phone') }}</span>
                             <span class="text-gray-700">{{ plan.customer?.phone || '—' }}</span>
                         </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Down Payment</span>
-                            <span class="font-semibold text-blue-700">{{ fmt(plan.down_payment) }} ({{ plan.down_payment_percent }}%)</span>
+                        <div v-if="plan.interest_rate > 0" class="flex justify-between">
+                            <span class="text-slate-500">{{ t('inst.interest_rate_lbl') }}</span>
+                            <span class="font-semibold text-orange-600">{{ plan.interest_rate }}% ({{ fmt(plan.interest_amount) }})</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Balance</span>
+                            <span class="text-slate-500">{{ t('inst.down_payment') }}</span>
+                            <span class="font-semibold text-blue-700">{{ fmt(plan.down_payment) }} ({{ plan.down_payment_percent }}%)</span>
+                        </div>
+                        <div v-if="plan.dp_grace_days > 0" class="flex justify-between">
+                            <span class="text-slate-500">{{ t('inst.grace_lbl') }}</span>
+                            <span class="text-gray-700">{{ plan.dp_grace_days }} {{ t('inst.grace_days') }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">{{ t('inst.balance') }}</span>
                             <span class="font-semibold text-orange-600">{{ fmt(plan.balance) }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Installments</span>
+                            <span class="text-slate-500">{{ t('nav.installments') }}</span>
                             <span class="text-gray-700">{{ plan.installments_count }} × {{ fmt(plan.installment_amount) }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Created by</span>
+                            <span class="text-slate-500">{{ t('inst.created_by') }}</span>
                             <span class="text-gray-700">{{ plan.user?.name }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Created</span>
-                            <span class="text-gray-700">{{ plan.created_at?.substring(0, 10) }}</span>
+                            <span class="text-slate-500">{{ t('inst.created') }}</span>
+                            <span class="text-gray-700">{{ fmtDate(plan.created_at) }}</span>
                         </div>
                     </div>
                     <p v-if="plan.notes" class="mt-3 text-xs text-slate-500 italic border-t pt-2" style="border-color:#E2E8F0;">{{ plan.notes }}</p>
@@ -336,7 +478,7 @@ function thumbUrl(url) {
 
                 <!-- Documents -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-3">Documents</p>
+                    <p class="text-sm font-semibold text-gray-700 mb-3">{{ t('inst.documents') }}</p>
 
                     <!-- Existing docs -->
                     <div v-if="plan.documents?.length > 0" class="grid grid-cols-2 gap-2 mb-4">
@@ -458,13 +600,74 @@ function thumbUrl(url) {
             </div>
         </div>
 
+        <!-- Settle-all modal -->
+        <div v-if="settleModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+                <div class="flex items-center gap-2 mb-1">
+                    <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h2 class="text-lg font-bold text-gray-800">{{ t('inst.settle_all_title') }}</h2>
+                </div>
+                <p class="text-sm text-slate-500 mb-4 ml-10">{{ plan.plan_no }} — {{ plan.customer?.name }}</p>
+
+                <!-- Remaining balance highlight -->
+                <div class="rounded-xl px-4 py-3 mb-4 flex items-center justify-between" style="background:#F0FDF4; border:1px solid #BBF7D0;">
+                    <span class="text-sm font-semibold text-green-700">{{ t('inst.remaining_balance') }}</span>
+                    <span class="text-xl font-bold text-green-700">{{ fmt(remainingBalance) }}</span>
+                </div>
+
+                <div class="space-y-3">
+                    <!-- Payment method -->
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">{{ t('inst.payment_method') }}</label>
+                        <div class="flex gap-2">
+                            <button v-for="m in ['cash', 'card', 'qr']" :key="m" type="button"
+                                @click="settleMethod = m"
+                                class="flex-1 py-1.5 text-xs font-bold rounded-lg border transition-colors"
+                                :class="settleMethod === m ? 'bg-green-600 text-white border-green-600' : 'border-gray-200 text-slate-600 hover:bg-slate-50'">
+                                {{ m.toUpperCase() }}
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Reference -->
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">{{ t('inst.reference') }}</label>
+                        <input v-model="settleRef" type="text"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                            placeholder="Optional…" />
+                    </div>
+                    <!-- Notes -->
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1">{{ t('inst.notes') }}</label>
+                        <textarea v-model="settleNotes" rows="2"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-5">
+                    <button type="button" @click="settleModal = false"
+                        class="flex-1 py-2 text-sm font-semibold text-slate-600 border border-gray-200 rounded-xl hover:bg-slate-50 transition-colors">
+                        {{ t('btn.cancel') }}
+                    </button>
+                    <button type="button" @click="submitSettle" :disabled="settleSubmitting"
+                        class="flex-1 py-2 text-sm font-bold text-white rounded-xl transition-colors disabled:opacity-50"
+                        style="background-color:#15803D;">
+                        {{ settleSubmitting ? '…' : t('inst.settle_all') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Pay modal -->
         <div v-if="payModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
-                <h2 class="text-lg font-bold text-gray-800 mb-1">Record Payment</h2>
+                <h2 class="text-lg font-bold text-gray-800 mb-1">{{ t('inst.record_payment') }}</h2>
                 <p class="text-sm text-slate-500 mb-4">
                     {{ payModal.installment_no === 0 ? 'Down Payment' : `Installment ${payModal.installment_no}` }}
-                    — Due {{ payModal.due_date }}
+                    — Due {{ fmtDate(payModal.due_date) }}
                 </p>
 
                 <div class="space-y-3">
@@ -473,6 +676,15 @@ function thumbUrl(url) {
                         <input v-model="payAmount" type="number" min="0.01" step="0.01"
                             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                         <p class="text-xs text-slate-400 mt-0.5">Balance due: {{ fmt(payModal.amount_due - payModal.amount_paid) }}</p>
+                        <!-- Overpayment hint -->
+                        <div v-if="payExcess > 0" class="mt-1.5 flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-xs" style="background:#EFF6FF; border:1px solid #BFDBFE;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z" />
+                            </svg>
+                            <span class="text-blue-700">
+                                Excess <strong>{{ fmt(payExcess) }}</strong> will be automatically applied to the next installment.
+                            </span>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs text-slate-500 mb-1">Payment Method</label>

@@ -85,9 +85,23 @@ function fmt(v) {
     return 'Rs. ' + Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function parseUtc(d) {
+    if (!d) return null;
+    // DB::table() returns "YYYY-MM-DD HH:mm:ss" with no timezone — treat as UTC
+    // Eloquent returns "YYYY-MM-DDTHH:mm:ss.000000Z" which JS already handles correctly
+    if (typeof d === 'string' && !d.includes('T') && !d.endsWith('Z')) {
+        return new Date(d.replace(' ', 'T') + 'Z');
+    }
+    return new Date(d);
+}
+
 function formatTime(d) {
     if (!d) return '';
-    return new Date(d).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' });
+    const dt      = parseUtc(d);
+    const todayStr = new Date().toDateString();
+    const timeStr  = dt.toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' });
+    if (dt.toDateString() === todayStr) return timeStr;
+    return dt.toLocaleDateString('en-LK', { day: '2-digit', month: 'short' }) + ' · ' + timeStr;
 }
 
 function daysUntilExpiry(dateStr) {

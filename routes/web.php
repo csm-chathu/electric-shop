@@ -64,6 +64,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/api/customers/{customer}/installments-summary', [InstallmentController::class, 'customerSummary'])->name('installments.customer-summary');
     Route::resource('installments', InstallmentController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('/installments/{plan}/payments/{payment}/pay', [InstallmentController::class, 'pay'])->name('installments.pay');
+    Route::post('/installments/{plan}/settle-all', [InstallmentController::class, 'settleAll'])->name('installments.settle-all');
     Route::post('/installments/{plan}/documents', [InstallmentController::class, 'uploadDocument'])->name('installments.documents.upload');
     Route::get('/installments/{plan}/documents/{document}', [InstallmentController::class, 'serveDocument'])->name('installments.documents.serve');
 
