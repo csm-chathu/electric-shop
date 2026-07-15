@@ -30,15 +30,18 @@ const search   = ref(props.filters?.search    || '');
 const dateFrom = ref(props.filters?.date_from || '');
 const dateTo   = ref(props.filters?.date_to   || '');
 
+function localDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function todayStr() {
-    return new Date().toISOString().slice(0, 10);
+    return localDate(new Date());
 }
 function mondayStr() {
     const d = new Date();
     const day = d.getDay();
     const diff = (day === 0 ? -6 : 1 - day);
     d.setDate(d.getDate() + diff);
-    return d.toISOString().slice(0, 10);
+    return localDate(d);
 }
 function monthStartStr() {
     const d = new Date();

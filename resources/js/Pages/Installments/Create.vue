@@ -72,7 +72,10 @@ async function saveQuickCustomer() {
         quickSaving.value = false;
     }
 }
-const todayStr = new Date().toISOString().slice(0, 10);
+function localDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const todayStr = localDate(new Date());
 
 const cart             = ref([]);
 const planDate         = ref(todayStr);
@@ -215,7 +218,7 @@ const dpDueDate = computed(() => {
     if (graceEnabled.value && dpGraceDays.value > 0) {
         d.setDate(d.getDate() + dpGraceDays.value);
     }
-    return d.toISOString().slice(0, 10);
+    return localDate(d);
 });
 
 function fmt(v) {
@@ -234,7 +237,7 @@ const schedule = computed(() => {
         const amt = isLast
             ? balance.value - (installmentAmt.value * (installmentCount.value - 1))
             : installmentAmt.value;
-        rows.push({ no: i, label: `${t('nav.installments')} ${i}`, due: d.toISOString().slice(0, 10), amount: Math.round(amt * 100) / 100 });
+        rows.push({ no: i, label: `${t('nav.installments')} ${i}`, due: localDate(d), amount: Math.round(amt * 100) / 100 });
     }
     return rows;
 });

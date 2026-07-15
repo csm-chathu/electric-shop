@@ -21,7 +21,8 @@ onMounted(async () => {
     allProducts.value = await getProducts();
 });
 
-const today = new Date().toISOString().slice(0, 10);
+const _nd = new Date();
+const today = `${_nd.getFullYear()}-${String(_nd.getMonth() + 1).padStart(2, '0')}-${String(_nd.getDate()).padStart(2, '0')}`;
 
 const form = useForm({
     supplier_id: '',

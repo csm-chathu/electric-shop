@@ -39,12 +39,16 @@ function clearCache() {
 }
 
 // ── Date filter ───────────────────────────────────────────────────────────────
-const dateFilter = ref(props.filters?.date || new Date().toISOString().slice(0, 10));
+function localDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+const dateFilter = ref(props.filters?.date || localDate(new Date()));
+
+function todayStr() { return localDate(new Date()); }
 function yesterdayStr() {
     const d = new Date(); d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
+    return localDate(d);
 }
 function monthStartStr() {
     const d = new Date();
@@ -246,6 +250,23 @@ const methodMeta = {
                     </div>
                     <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills</span></div>
                 </div>
+                <!-- Total Collected = today sales + installments -->
+                <div class="col-span-2 bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #C7D2FE; background:linear-gradient(135deg,#EEF2FF 0%,#fff 100%);">
+                    <div class="flex items-center gap-3 px-4 py-3">
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#E0E7FF;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#4338CA"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs text-slate-500 leading-tight">Total Collected</p>
+                            <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(todaySales + todayInstallments) }}</p>
+                        </div>
+                        <div class="text-right text-xs text-slate-400 leading-relaxed flex-shrink-0">
+                            <p>Sales <span class="font-semibold text-slate-600">{{ fmt(todaySales) }}</span></p>
+                            <p v-if="todayInstallments > 0">Installments <span class="font-semibold" style="color:#EA580C;">{{ fmt(todayInstallments) }}</span></p>
+                        </div>
+                    </div>
+                </div>
+
                 <Link :href="route('products.index')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
                     <div class="flex items-center gap-3 px-4 pt-4 pb-2">
                         <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#F3E8FF;">
@@ -353,6 +374,22 @@ const methodMeta = {
                     </div>
                 </div>
                 <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills this month</span></div>
+            </div>
+            <!-- Total Collected = today sales + installments -->
+            <div class="col-span-2 bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #C7D2FE; background:linear-gradient(135deg,#EEF2FF 0%,#fff 100%);">
+                <div class="flex items-center gap-3 px-4 py-3">
+                    <div class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#E0E7FF;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#4338CA"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-slate-500 leading-tight">Total Collected</p>
+                        <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(todaySales + todayInstallments) }}</p>
+                    </div>
+                    <div class="text-right text-xs text-slate-400 leading-relaxed flex-shrink-0">
+                        <p>Sales <span class="font-semibold text-slate-600">{{ fmt(todaySales) }}</span></p>
+                        <p v-if="todayInstallments > 0">Installments <span class="font-semibold" style="color:#EA580C;">{{ fmt(todayInstallments) }}</span></p>
+                    </div>
+                </div>
             </div>
         </div>
 

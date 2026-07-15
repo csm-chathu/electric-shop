@@ -127,7 +127,8 @@ function formatCurrency(value) {
 
 function activePromo(product) {
     if (!product.promo_price) return null;
-    const today = new Date().toISOString().slice(0, 10);
+    const _d = new Date();
+    const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
     const start = product.promo_start_date ? String(product.promo_start_date).slice(0, 10) : null;
     const end   = product.promo_end_date   ? String(product.promo_end_date).slice(0, 10)   : null;
     if (start && start > today) return null;
