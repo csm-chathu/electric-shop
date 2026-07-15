@@ -258,7 +258,7 @@ const methodMeta = {
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-xs text-slate-500 leading-tight">Total Collected</p>
-                            <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(todaySales + todayInstallments) }}</p>
+                            <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(Number(todaySales) + Number(todayInstallments)) }}</p>
                         </div>
                         <div class="text-right text-xs text-slate-400 leading-relaxed flex-shrink-0">
                             <p>Sales <span class="font-semibold text-slate-600">{{ fmt(todaySales) }}</span></p>
@@ -383,7 +383,7 @@ const methodMeta = {
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-xs text-slate-500 leading-tight">Total Collected</p>
-                        <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(todaySales + todayInstallments) }}</p>
+                        <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(Number(todaySales) + Number(todayInstallments)) }}</p>
                     </div>
                     <div class="text-right text-xs text-slate-400 leading-relaxed flex-shrink-0">
                         <p>Sales <span class="font-semibold text-slate-600">{{ fmt(todaySales) }}</span></p>
