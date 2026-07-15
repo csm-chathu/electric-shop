@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { inject, computed, ref, onMounted, onUnmounted } from 'vue';
+import { inject, computed, ref } from 'vue';
 
 const t = inject('t');
 const page = usePage();
@@ -79,14 +79,6 @@ const monthLabel = computed(() => {
     return new Date(dateFilter.value + 'T00:00:00').toLocaleDateString('en-LK', { month: 'long', year: 'numeric' });
 });
 
-// Auto-refresh every 30 s — only when viewing today
-let _refreshTimer = null;
-onMounted(() => {
-    if (props.isToday) {
-        _refreshTimer = setInterval(() => router.reload(), 30_000);
-    }
-});
-onUnmounted(() => clearInterval(_refreshTimer));
 
 // ── Heatmap helpers ──
 const hoveredCell = ref(null);
@@ -154,6 +146,11 @@ function expiryLabel(days) {
     if (days <= 7)  return { text: `${days}d left`,                  cls: 'bg-red-100 text-red-700' };
     return               { text: `${days}d left`,                    cls: 'bg-amber-100 text-amber-700' };
 }
+
+// Total physically received today: all payment methods + installments
+const todayGrandTotal = computed(() =>
+    props.todayByPayment.reduce((s, p) => s + Number(p.total), 0) + Number(props.todayInstallments)
+);
 
 const methodMeta = {
     cash:   { label: 'Cash',   color: '#16A34A', bg: '#F0FDF4', icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>` },
@@ -257,7 +254,7 @@ const methodMeta = {
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#4338CA"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs text-slate-500 leading-tight">Total Collected</p>
+                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.total_collected') }}</p>
                             <p class="font-bold text-xl leading-tight" style="color:#3730A3;">{{ fmt(Number(todaySales) + Number(todayInstallments)) }}</p>
                         </div>
                         <div class="text-right text-xs text-slate-400 leading-relaxed flex-shrink-0">
@@ -447,7 +444,7 @@ const methodMeta = {
         </div>
 
         <!-- ── TODAY PAYMENT SUMMARY ── -->
-        <div v-if="todayByPayment.length > 0 || todayInstallments > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div v-if="todayByPayment.length > 0 || todayInstallments > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" style="align-items:start;">
             <div
                 v-for="p in todayByPayment"
                 :key="p.method"
@@ -477,6 +474,32 @@ const methodMeta = {
                     <p class="text-xs text-slate-400">Installments</p>
                     <p class="font-bold text-sm truncate" style="color:#EA580C;">{{ fmt(todayInstallments) }}</p>
                     <p class="text-xs text-slate-400">collected</p>
+                </div>
+            </div>
+
+            <!-- Grand Total: all payment methods + installments -->
+            <div class="col-span-2 md:col-span-4 rounded-xl px-5 py-3 flex items-center justify-between gap-4"
+                style="background:linear-gradient(135deg,#1E3A5F 0%,#1D4ED8 100%); border:1px solid #1D4ED8;">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(255,255,255,0.15);">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-xs font-medium" style="color:rgba(255,255,255,0.7);">දෛනික මුළු ආදායම / Total Daily Income</p>
+                        <p class="text-xl font-bold text-white">{{ fmt(todayGrandTotal) }}</p>
+                    </div>
+                </div>
+                <div class="text-right text-xs leading-relaxed" style="color:rgba(255,255,255,0.75);">
+                    <p v-for="p in todayByPayment" :key="p.method">
+                        {{ (methodMeta[p.method] || { label: p.method }).label }}
+                        <span class="font-semibold text-white ml-1">{{ fmt(p.total) }}</span>
+                    </p>
+                    <p v-if="todayInstallments > 0">
+                        Installments
+                        <span class="font-semibold ml-1" style="color:#FED7AA;">{{ fmt(todayInstallments) }}</span>
+                    </p>
                 </div>
             </div>
         </div>

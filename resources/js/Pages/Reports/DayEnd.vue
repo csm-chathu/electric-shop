@@ -70,7 +70,7 @@ async function printReport() {
         </template>
 
         <!-- Screen view -->
-        <div class="no-print grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div class="no-print grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 text-center">
                 <p class="text-xs text-slate-500 mb-1">මුළු ඉන්වොයිස්</p>
                 <p class="text-3xl font-bold text-blue-600">{{ summary.total_bills }}</p>
@@ -91,6 +91,12 @@ async function printReport() {
                 <p class="text-2xl font-bold" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
                 <p class="text-xs text-slate-400 mt-0.5">{{ summary.installment_count }} payments</p>
             </div>
+            <!-- Total Daily Income = sales received + installments -->
+            <div class="rounded-xl p-4 shadow-sm text-center" style="border:1px solid #C7D2FE; background:linear-gradient(135deg,#EEF2FF 0%,#fff 100%);">
+                <p class="text-xs text-slate-500 mb-1">දෛනික මුළු ආදායම</p>
+                <p class="text-2xl font-bold" style="color:#3730A3;">{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</p>
+                <p class="text-xs mt-0.5" style="color:#6366F1;">විකුණුම් + වාරික</p>
+            </div>
         </div>
 
         <div class="no-print grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -109,12 +115,28 @@ async function printReport() {
                         <p class="font-bold text-green-600">{{ fmt(pm.total) }}</p>
                     </div>
                     <!-- Outstanding credit row -->
-                    <div v-if="summary.total_credit > 0" class="flex justify-between items-center py-2">
+                    <div v-if="summary.total_credit > 0" class="flex justify-between items-center py-2 border-b border-slate-50">
                         <div>
                             <p class="font-medium" style="color:#DC2626;">ණය / Credit</p>
                             <p class="text-xs text-slate-400">නොගෙවූ ශේෂය</p>
                         </div>
                         <p class="font-bold" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
+                    </div>
+                    <!-- Installments row -->
+                    <div v-if="summary.installment_total > 0" class="flex justify-between items-center py-2 border-b border-slate-50">
+                        <div>
+                            <p class="font-medium" style="color:#EA580C;">වාරික / Installments</p>
+                            <p class="text-xs text-slate-400">{{ summary.installment_count }} payments</p>
+                        </div>
+                        <p class="font-bold" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
+                    </div>
+                    <!-- Grand total row -->
+                    <div class="flex justify-between items-center pt-3 mt-1 border-t-2 border-slate-200">
+                        <div>
+                            <p class="font-bold text-slate-800">දෛනික මුළු ආදායම</p>
+                            <p class="text-xs text-slate-400">Total Daily Income</p>
+                        </div>
+                        <p class="text-lg font-bold" style="color:#1D4ED8;">{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</p>
                     </div>
                 </div>
             </div>
@@ -250,7 +272,7 @@ async function printReport() {
 
             <div class="receipt-divider"></div>
 
-            <!-- Grand total -->
+            <!-- Grand total (sales) -->
             <div class="receipt-grand-total">
                 <span>මුළු ආදායම (ලැබූ)</span>
                 <span>{{ fmt(summary.total_revenue) }}</span>
@@ -271,9 +293,21 @@ async function printReport() {
                     </tr>
                 </table>
                 <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-top:1px dashed #666;margin-top:2px;">
-                    <span>Installments Total</span>
+                    <span>වාරික එකතුව / Installments Total</span>
                     <span>{{ fmt(summary.installment_total) }}</span>
                 </div>
+            </div>
+
+            <div class="receipt-divider"></div>
+
+            <!-- Daily total income (sales + installments) -->
+            <div style="display:flex;justify-content:space-between;font-size:15px;padding:3px 0;font-weight:900;">
+                <span>දෛනික මුළු ආදායම</span>
+                <span>{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:15px;padding:3px 0;font-weight:900;">
+                <span>TOTAL DAILY INCOME</span>
+                <span>{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</span>
             </div>
 
             <div class="receipt-divider"></div>

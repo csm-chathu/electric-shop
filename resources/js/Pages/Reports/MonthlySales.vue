@@ -63,6 +63,12 @@ function changeMonth() {
                 <p class="text-xs text-slate-500 mb-1">{{ t('rep.total_discount') }}</p>
                 <p class="text-xl font-bold" style="color:#F59E0B;">{{ fmt(summary.total_discount) }}</p>
             </div>
+            <!-- Monthly Total Income = sales received + installments -->
+            <div class="rounded-xl p-4 shadow-sm col-span-2 lg:col-span-1" style="border:1px solid #C7D2FE; background:linear-gradient(135deg,#1E3A5F 0%,#1D4ED8 100%);">
+                <p class="text-xs font-medium mb-1" style="color:rgba(255,255,255,0.7);">මාසික මුළු ආදායම</p>
+                <p class="text-xl font-bold text-white">{{ fmt(Number(summary.total_revenue) + Number(summary.total_installments)) }}</p>
+                <p class="text-xs mt-0.5" style="color:rgba(255,255,255,0.6);">විකුණුම් + වාරික</p>
+            </div>
         </div>
 
         <!-- Daily breakdown table -->
@@ -77,10 +83,11 @@ function changeMonth() {
                             <th class="px-4 py-3 text-right">ණය ශේෂය</th>
                             <th class="px-4 py-3 text-right">වාරික</th>
                             <th class="px-4 py-3 text-right">{{ t('lbl.discount') }}</th>
+                            <th class="px-4 py-3 text-right" style="color:#1D4ED8;">දෛනික මුළු</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="byDay.length === 0"><td colspan="6" class="px-4 py-8 text-center text-slate-400">{{ t('lbl.no_data') }}</td></tr>
+                        <tr v-if="byDay.length === 0"><td colspan="7" class="px-4 py-8 text-center text-slate-400">{{ t('lbl.no_data') }}</td></tr>
                         <tr v-for="row in byDay" :key="row.date" class="hover:bg-slate-50" style="border-bottom:1px solid #F1F5F9;">
                             <td class="px-4 py-2.5 font-medium" style="color:#0F172A;">{{ row.date }}</td>
                             <td class="px-4 py-2.5 text-center text-slate-600">{{ row.count }}</td>
@@ -95,6 +102,9 @@ function changeMonth() {
                                 {{ row.installments > 0 ? fmt(row.installments) : '—' }}
                             </td>
                             <td class="px-4 py-2.5 text-right" style="color:#F59E0B;">{{ fmt(row.discount) }}</td>
+                            <td class="px-4 py-2.5 text-right font-bold" style="color:#1D4ED8;">
+                                {{ fmt(Number(row.total) + Number(row.installments)) }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
