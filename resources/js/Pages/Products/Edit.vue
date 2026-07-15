@@ -16,8 +16,7 @@ const barcodeError = ref('');
 function validateBarcode() {
     const val = form.barcode.trim();
     if (!val) { barcodeError.value = ''; return true; }
-    if (!/^\d+$/.test(val)) { barcodeError.value = 'Barcode must contain numbers only.'; return false; }
-    if (val.length < 4) { barcodeError.value = 'Barcode must be at least 4 digits.'; return false; }
+    if (val.length < 2) { barcodeError.value = 'Barcode must be at least 2 characters.'; return false; }
     barcodeError.value = '';
     return true;
 }
@@ -74,7 +73,11 @@ async function submit() {
         form.image = await imageUploadRef.value?.upload() ?? form.image;
     } catch { return; }
     invalidateProducts();
-    form.put(route('products.update', props.product.id), {
+    form.transform(data => ({
+        ...data,
+        barcode: data.barcode?.trim() || null,
+        sku:     data.sku?.trim()     || null,
+    })).put(route('products.update', props.product.id), {
         onError: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
     });
 }

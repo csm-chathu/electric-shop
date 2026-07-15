@@ -15,12 +15,14 @@ const props = defineProps({
 const search     = ref(props.filters.search     || '');
 const categoryId = ref(props.filters.category_id || '');
 const status     = ref(props.filters.status      || '');
+const perPage    = ref(props.filters.per_page    || '50');
 
 function applyFilters() {
     router.get(route('reports.stock-summary'), {
         search:      search.value      || undefined,
         category_id: categoryId.value  || undefined,
         status:      status.value      || undefined,
+        per_page:    perPage.value     || undefined,
     }, { preserveState: true, replace: true });
 }
 
@@ -28,6 +30,7 @@ function resetFilters() {
     search.value     = '';
     categoryId.value = '';
     status.value     = '';
+    perPage.value    = '50';
     applyFilters();
 }
 
@@ -123,6 +126,19 @@ function stockStatus(product) {
                         <option value="out">Out of Stock</option>
                     </select>
                 </div>
+                <div class="min-w-[110px]">
+                    <select
+                        v-model="perPage"
+                        class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        @change="applyFilters"
+                    >
+                        <option value="50">50 / page</option>
+                        <option value="100">100 / page</option>
+                        <option value="200">200 / page</option>
+                        <option value="500">500 / page</option>
+                        <option value="9999">All</option>
+                    </select>
+                </div>
                 <button @click="applyFilters" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">Search</button>
                 <button @click="resetFilters" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg transition-colors">Reset</button>
             </div>
@@ -184,23 +200,69 @@ function stockStatus(product) {
             </div>
 
             <!-- Pagination -->
-            <div v-if="products.meta?.last_page > 1" class="flex items-center justify-between px-4 py-3 border-t border-slate-200 print:hidden">
+            <div v-if="products.total > 0" class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 print:hidden">
+                <!-- Record count -->
                 <p class="text-sm text-slate-500">
-                    Showing {{ products.meta.from }}–{{ products.meta.to }} of {{ products.meta.total }}
+                    Showing <span class="font-semibold text-slate-700">{{ products.from }}–{{ products.to }}</span>
+                    of <span class="font-semibold text-slate-700">{{ products.total }}</span> products
                 </p>
-                <div class="flex gap-1">
+
+                <!-- Page controls (only when more than 1 page) -->
+                <div v-if="products.last_page > 1" class="flex items-center gap-1">
+                    <!-- Prev -->
                     <Link
-                        v-for="link in products.links"
-                        :key="link.label"
-                        :href="link.url || '#'"
+                        :href="products.prev_page_url || '#'"
                         :class="[
-                            'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                            link.active ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
-                            !link.url ? 'opacity-40 cursor-not-allowed pointer-events-none' : '',
+                            'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                            !products.prev_page_url
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
                         ]"
-                        v-html="link.label"
                         preserve-scroll
-                    />
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Prev
+                    </Link>
+
+                    <!-- Page numbers — links array has «Prev, 1, 2, …, Next» entries -->
+                    <template v-for="link in products.links" :key="link.label">
+                        <Link
+                            v-if="link.url && !link.label.includes('&laquo;') && !link.label.includes('&raquo;')"
+                            :href="link.url"
+                            :class="[
+                                'min-w-[36px] text-center px-2 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                                link.active
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                            ]"
+                            v-html="link.label"
+                            preserve-scroll
+                        />
+                        <span
+                            v-else-if="!link.url && !link.label.includes('&laquo;') && !link.label.includes('&raquo;')"
+                            class="min-w-[36px] text-center px-2 py-1.5 text-sm text-slate-400"
+                            v-html="link.label"
+                        />
+                    </template>
+
+                    <!-- Next -->
+                    <Link
+                        :href="products.next_page_url || '#'"
+                        :class="[
+                            'flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                            !products.next_page_url
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed pointer-events-none'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200',
+                        ]"
+                        preserve-scroll
+                    >
+                        Next
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </Link>
                 </div>
             </div>
         </div>

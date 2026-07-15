@@ -350,7 +350,8 @@ class ReportController extends Controller
             $query->where('stock_qty', '<=', 0);
         }
 
-        $products = $query->orderBy('name')->paginate(50)->withQueryString();
+        $perPage  = min((int) ($request->per_page ?? 50), 9999);
+        $products = $query->orderBy('name')->paginate($perPage)->withQueryString();
 
         // Summary across all active products (not filtered)
         $all = Product::where('active', true)
@@ -363,7 +364,7 @@ class ReportController extends Controller
             'products'   => $products,
             'summary'    => $all,
             'categories' => $categories,
-            'filters'    => $request->only(['search', 'category_id', 'status']),
+            'filters'    => $request->only(['search', 'category_id', 'status', 'per_page']),
         ]);
     }
 

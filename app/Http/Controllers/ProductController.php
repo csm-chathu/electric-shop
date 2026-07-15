@@ -7,7 +7,6 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -62,9 +61,6 @@ class ProductController extends Controller
             'unit'            => 'nullable|string|max:50',
         ]);
 
-        if (empty($validated['barcode'])) {
-            $validated['barcode'] = strtoupper(Str::slug($validated['name'], '') . '-' . strtoupper(Str::random(6)));
-        }
 
         $validated['wholesale_price'] = $validated['wholesale_price'] ?? 0;
         $validated['cost_price']      = $validated['cost_price'] ?? 0;
@@ -121,9 +117,6 @@ class ProductController extends Controller
             'variants.*.conversion_factor'  => 'nullable|numeric|min:0.000001',
         ]);
 
-        if (empty($validated['barcode'])) {
-            $validated['barcode'] = strtoupper(Str::slug($validated['name'], '') . '-' . strtoupper(Str::random(6)));
-        }
 
         $variants = $validated['variants'] ?? [];
         unset($validated['variants']);
