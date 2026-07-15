@@ -154,6 +154,7 @@ class SaleController extends Controller
             'extra_charges'            => 'nullable|array',
             'extra_charges.*.reason'   => 'required|string|max:255',
             'extra_charges.*.amount'   => 'required|numeric|min:0',
+            'credit_due_date'          => 'nullable|date',
         ]);
 
         $sale = DB::transaction(function () use ($request) {
@@ -179,9 +180,10 @@ class SaleController extends Controller
                 'tax'           => $request->tax ?? 0,
                 'total'         => $request->total,
                 'paid'          => $request->paid,
-                'balance'       => $balance,
-                'status'        => 'completed',
-                'note'          => $request->note,
+                'balance'          => $balance,
+                'credit_due_date'  => $request->payment_method === 'credit' ? $request->credit_due_date : null,
+                'status'           => 'completed',
+                'note'             => $request->note,
                 'extra_charges' => $request->extra_charges ?: null,
             ]);
 

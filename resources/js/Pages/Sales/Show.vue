@@ -327,6 +327,10 @@ onMounted(async () => {
                         <td class="meta-label">{{ tBill('lbl.change') }}</td>
                         <td class="meta-value">{{ n(Math.abs(sale.balance)) }}</td>
                     </tr>
+                    <tr v-if="sale.credit_due_date" style="color:#DC2626; font-weight:800;">
+                        <td class="meta-label">ගෙවීම් දිනය</td>
+                        <td class="meta-value">{{ fmtDate(sale.credit_due_date) }}</td>
+                    </tr>
                 </table>
 
                 <div class="divider" style="border-top:1px solid #CBD5E1; margin:10px 0;"></div>

@@ -161,6 +161,7 @@ const statusClass = {
                         </p>
                         <p class="text-sm text-gray-500">{{ sale.customer?.name || t('lbl.general') }}</p>
                         <p class="text-xs text-gray-400">{{ sale.user?.name }} · {{ formatDate(sale.created_at) }}</p>
+                        <p v-if="sale.credit_due_date" class="text-xs text-red-500 font-medium">Due: {{ formatDate(sale.credit_due_date) }}</p>
                     </div>
                     <div class="text-right">
                         <p class="font-bold text-green-600">{{ formatCurrency(sale.total) }}</p>
@@ -223,6 +224,9 @@ const statusClass = {
                             <td class="px-4 py-3 text-gray-500 text-sm">
                                 {{ formatDate(sale.created_at) }}
                                 <span class="text-gray-400">{{ formatTime(sale.created_at) }}</span>
+                                <span v-if="sale.credit_due_date" class="block text-xs text-red-500 font-medium mt-0.5">
+                                    Due: {{ formatDate(sale.credit_due_date) }}
+                                </span>
                             </td>
                             <td class="px-4 py-3 text-right">
                                 <Link

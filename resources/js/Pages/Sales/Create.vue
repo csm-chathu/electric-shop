@@ -76,6 +76,7 @@ const holdNote         = ref('');
 const showHoldModal    = ref(false);
 const submitting       = ref(false);
 const errorMsg         = ref('');
+const creditDueDate    = ref('');
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 const darkMode = ref(localStorage.getItem('pos_dark') === '1');
@@ -156,19 +157,20 @@ async function saveQuickCustomer() {
 
 // ─── Inertia form ─────────────────────────────────────────────────────────────
 const form = useForm({
-    items:           [],
-    customer_id:     null,
-    payment_method:  'cash',
-    card_receipt_no: '',
-    split_cash:      0,
-    split_card:      0,
-    paid:            0,
-    subtotal:        0,
-    discount:        0,
-    tax:             0,
-    total:           0,
-    extra_charges:   null,
-    skip_print:      false,
+    items:            [],
+    customer_id:      null,
+    payment_method:   'cash',
+    card_receipt_no:  '',
+    split_cash:       0,
+    split_card:       0,
+    paid:             0,
+    subtotal:         0,
+    discount:         0,
+    tax:              0,
+    total:            0,
+    extra_charges:    null,
+    skip_print:       false,
+    credit_due_date:  null,
 });
 
 // ─── Computed totals ──────────────────────────────────────────────────────────
@@ -824,8 +826,9 @@ function submitSale(skipPrint = false) {
     form.discount       = totalDiscount.value;
     form.tax            = tax.value;
     form.total          = total.value;
-    form.extra_charges  = null;
-    form.skip_print     = skipPrint;
+    form.extra_charges   = null;
+    form.skip_print      = skipPrint;
+    form.credit_due_date = paymentMethod.value === 'credit' ? (creditDueDate.value || null) : null;
 
     form.post(route('sales.store'), {
         onSuccess: () => {
@@ -1838,6 +1841,16 @@ function addToCartTouched(product) {
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                 </svg>
                                 {{ t('lbl.credit_warn') }}
+                            </div>
+
+                            <!-- Credit due date -->
+                            <div v-if="paymentMethod === 'credit'" class="mt-2">
+                                <label class="text-xs font-semibold text-red-500 uppercase tracking-wider block mb-1">Due Date</label>
+                                <input
+                                    v-model="creditDueDate"
+                                    type="date"
+                                    class="w-full border-2 border-red-200 dark:border-red-900 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 dark:bg-slate-700 dark:text-slate-200"
+                                />
                             </div>
                         </div>
 

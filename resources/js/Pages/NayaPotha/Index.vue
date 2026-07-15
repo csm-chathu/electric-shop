@@ -259,6 +259,7 @@ function totalInvoiced(customer) {
                                 <tr style="background:#F1F5F9;">
                                     <th class="px-4 py-2 text-left font-semibold" style="color:#64748B;">{{ t('th.invoice') }}</th>
                                     <th class="px-4 py-2 text-left font-semibold" style="color:#64748B;">{{ t('credit.date_time') }}</th>
+                                    <th class="px-4 py-2 text-left font-semibold" style="color:#DC2626;">ගෙවීම් දිනය</th>
                                     <th class="px-4 py-2 text-right font-semibold" style="color:#64748B;">{{ t('lbl.total') }}</th>
                                     <th class="px-4 py-2 text-right font-semibold" style="color:#64748B;">{{ t('th.paid') }}</th>
                                     <th class="px-4 py-2 text-right font-semibold" style="color:#DC2626;">{{ t('lbl.balance') }}</th>
@@ -270,6 +271,12 @@ function totalInvoiced(customer) {
                                         <Link :href="route('sales.show', sale.id)" class="hover:underline" style="color:#2563EB;">{{ sale.invoice_no }}</Link>
                                     </td>
                                     <td class="px-4 py-2" style="color:#64748B;">{{ fmtDate(sale.created_at) }}</td>
+                                    <td class="px-4 py-2">
+                                        <span v-if="sale.credit_due_date" :style="new Date(sale.credit_due_date) < new Date() ? 'color:#DC2626; font-weight:700;' : 'color:#D97706; font-weight:600;'">
+                                            {{ fmtDate(sale.credit_due_date) }}
+                                        </span>
+                                        <span v-else style="color:#CBD5E1;">—</span>
+                                    </td>
                                     <td class="px-4 py-2 text-right" style="color:#334155;">{{ fmt(sale.total) }}</td>
                                     <td class="px-4 py-2 text-right" style="color:#16A34A;">{{ fmt(sale.paid) }}</td>
                                     <td class="px-4 py-2 text-right font-semibold" style="color:#DC2626;">{{ fmt(sale.balance) }}</td>
@@ -432,6 +439,7 @@ function totalInvoiced(customer) {
                                     <tr style="background:#F8FAFC;">
                                         <th class="px-3 py-2 text-left" style="color:#64748B;">{{ t('th.invoice') }}</th>
                                         <th class="px-3 py-2 text-left" style="color:#64748B;">{{ t('th.date') }}</th>
+                                        <th class="px-3 py-2 text-left" style="color:#DC2626;">ගෙවීම් දිනය</th>
                                         <th class="px-3 py-2 text-right" style="color:#64748B;">{{ t('lbl.total') }}</th>
                                         <th class="px-3 py-2 text-right" style="color:#64748B;">{{ t('th.paid') }}</th>
                                         <th class="px-3 py-2 text-right" style="color:#DC2626;">{{ t('lbl.balance') }}</th>
@@ -443,6 +451,12 @@ function totalInvoiced(customer) {
                                             <Link :href="route('sales.show', sale.id)" class="hover:underline" style="color:#2563EB;">{{ sale.invoice_no }}</Link>
                                         </td>
                                         <td class="px-3 py-2" style="color:#64748B;">{{ fmtDate(sale.created_at) }}</td>
+                                        <td class="px-3 py-2">
+                                            <span v-if="sale.credit_due_date" :style="new Date(sale.credit_due_date) < new Date() ? 'color:#DC2626; font-weight:700;' : 'color:#D97706; font-weight:600;'">
+                                                {{ fmtDate(sale.credit_due_date) }}
+                                            </span>
+                                            <span v-else style="color:#CBD5E1;">—</span>
+                                        </td>
                                         <td class="px-3 py-2 text-right" style="color:#334155;">{{ fmt(sale.total) }}</td>
                                         <td class="px-3 py-2 text-right" style="color:#16A34A;">{{ fmt(sale.paid) }}</td>
                                         <td class="px-3 py-2 text-right font-bold" style="color:#DC2626;">{{ fmt(sale.balance) }}</td>

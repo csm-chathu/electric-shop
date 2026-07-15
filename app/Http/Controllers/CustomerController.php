@@ -135,7 +135,7 @@ class CustomerController extends Controller
                 $q->where('status', 'completed')
                   ->when(!$history, fn($q) => $q->where('balance', '>', 0))
                   ->orderByDesc('created_at')
-                  ->select('id', 'customer_id', 'invoice_no', 'total', 'paid', 'balance', 'created_at');
+                  ->select('id', 'customer_id', 'invoice_no', 'total', 'paid', 'balance', 'credit_due_date', 'created_at');
             },
             'creditPayments' => function ($q) {
                 $q->orderByDesc('created_at')
