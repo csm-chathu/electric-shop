@@ -284,6 +284,23 @@ class SaleController extends Controller
                     'amount'    => $splitCard,
                     'reference' => $request->card_receipt_no ?: null,
                 ]);
+            } elseif ($request->payment_method === 'credit') {
+                // Upfront cash received (may be 0 for full-credit sales)
+                if ($request->paid > 0) {
+                    Payment::create([
+                        'sale_id' => $sale->id,
+                        'method'  => 'cash',
+                        'amount'  => $request->paid,
+                    ]);
+                }
+                // Outstanding credit balance owed by customer
+                if ($balance > 0) {
+                    Payment::create([
+                        'sale_id' => $sale->id,
+                        'method'  => 'credit',
+                        'amount'  => $balance,
+                    ]);
+                }
             } else {
                 Payment::create([
                     'sale_id'   => $sale->id,
@@ -357,21 +374,41 @@ class SaleController extends Controller
             abort(403, 'Only admins can delete invoices.');
         }
 
-        $sale = Sale::with('items')->findOrFail($id);
+        $sale = Sale::with(['items.variant', 'payments', 'returns', 'customer'])->findOrFail($id);
+
+        if ($sale->returns->isNotEmpty()) {
+            return back()->withErrors(['error' => 'Cannot delete invoice ' . $sale->invoice_no . ' — it has ' . $sale->returns->count() . ' return(s). Delete the returns first.']);
+        }
 
         DB::transaction(function () use ($sale) {
+            // ── Restore product stock ─────────────────────────────────
             foreach ($sale->items as $item) {
-                if ($item->product_id) {
-                    $product = Product::find($item->product_id);
-                    if ($product) {
-                        $product->increment('stock_qty', $item->qty);
-                    }
-                }
+                if (!$item->product_id) continue;
+                $product = Product::lockForUpdate()->find($item->product_id);
+                if (!$product) continue;
+
+                // If variant, use the conversion factor stored on the variant
+                $factor = $item->variant ? max((float) ($item->variant->conversion_factor ?? 1), 0.000001) : 1;
+                $product->increment('stock_qty', $item->qty * $factor);
             }
+
+            // ── Delete stock movements linked to this invoice ─────────
+            StockMovement::where('reference', $sale->invoice_no)->delete();
+
+            // ── Reverse customer credit balance if credit sale ─────────
+            if ($sale->customer && $sale->balance > 0) {
+                $sale->customer->decrement('credit_balance', $sale->balance);
+            }
+
+            // ── Delete child records then the sale ─────────────────────
+            $sale->payments()->delete();
+            $sale->items()->delete();
             $sale->delete();
         });
 
-        return redirect()->route('sales.index')->with('success', 'Invoice deleted and stock restored.');
+        DashboardController::bustCache();
+
+        return redirect()->route('sales.index')->with('success', 'Invoice ' . $sale->invoice_no . ' deleted and stock restored.');
     }
 
     /**

@@ -21,11 +21,22 @@ const currency    = computed(() => props.settings.currency     || 'Rs.');
 const logoUrl     = computed(() => props.settings.logo         || null);
 
 const isSplit   = computed(() => (props.sale.payments?.length ?? 0) > 1);
-const isAdmin   = computed(() => usePage().props.auth?.role === 'admin');
+const isAdmin   = computed(() => usePage().props.auth?.user?.role === 'admin');
+
+const showDeleteModal = ref(false);
+const deleting        = ref(false);
 
 function deleteSale() {
-    if (!confirm(`Delete invoice ${props.sale.invoice_no}? This will restore stock and cannot be undone.`)) return;
-    router.delete(route('sales.destroy', props.sale.id));
+    showDeleteModal.value = true;
+}
+function cancelDelete() {
+    if (!deleting.value) showDeleteModal.value = false;
+}
+function executeDelete() {
+    deleting.value = true;
+    router.delete(route('sales.destroy', props.sale.id), {
+        onFinish: () => { deleting.value = false; showDeleteModal.value = false; },
+    });
 }
 
 const paymentLabel = computed(() => {
@@ -178,13 +189,14 @@ onMounted(async () => {
                         v-if="isAdmin"
                         type="button"
                         @click="deleteSale"
-                        class="no-print flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+                        :disabled="deleting"
+                        class="no-print flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
                         style="background-color:#7F1D1D;"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        Delete
+                        {{ deleting ? 'Deleting…' : 'Delete Invoice' }}
                     </button>
                 </div>
             </div>
@@ -488,9 +500,47 @@ onMounted(async () => {
 
         </div>
     </AuthenticatedLayout>
+
+    <!-- ── Delete confirmation modal ─────────────────────────────────── -->
+    <Teleport to="body">
+        <Transition name="modal-fade">
+            <div v-if="showDeleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cancelDelete">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                    <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-center text-gray-900 mb-1">Delete Invoice</h3>
+                    <p class="text-sm text-center text-gray-500 mb-4">
+                        <span class="font-semibold text-gray-800">{{ sale.invoice_no }}</span>
+                    </p>
+                    <ul class="text-xs text-gray-500 space-y-1 bg-gray-50 rounded-xl px-4 py-3 mb-5">
+                        <li class="flex items-center gap-2"><span class="text-green-600">✓</span> Product stock will be restored</li>
+                        <li class="flex items-center gap-2"><span class="text-green-600">✓</span> All payments will be removed</li>
+                        <li v-if="Number(sale.balance) > 0" class="flex items-center gap-2"><span class="text-green-600">✓</span> Customer credit balance will be reversed</li>
+                        <li class="flex items-center gap-2"><span class="text-red-500">✗</span> This action cannot be undone</li>
+                    </ul>
+                    <div class="flex gap-3">
+                        <button type="button" @click="cancelDelete" :disabled="deleting"
+                            class="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button" @click="executeDelete" :disabled="deleting"
+                            class="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors">
+                            {{ deleting ? 'Deleting…' : 'Delete Invoice' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
 </template>
 
 <style>
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+
 /* Print button pulse + label slide-in */
 .print-btn {
     transition: box-shadow 0.2s, transform 0.2s;

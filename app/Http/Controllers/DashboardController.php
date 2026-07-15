@@ -60,15 +60,26 @@ class DashboardController extends Controller
                 Sale::whereBetween('created_at', [$monthStart, $monthEnd])->where('status', '!=', 'held')->count(),
             ];
 
+            // Total invoiced (including credit not yet collected)
+            $todayTotal = Sale::whereDate('created_at', $selectedDate)->where('status', '!=', 'held')->sum('total');
+            $monthTotal = Sale::whereBetween('created_at', [$monthStart, $monthEnd])->where('status', '!=', 'held')->sum('total');
+
+            // Installment collections
+            $todayInstallments = InstallmentPayment::whereDate('paid_at', $selectedDate)->where('status', 'paid')->sum('amount_paid');
+            $monthInstallments = InstallmentPayment::whereBetween('paid_at', [$monthStart, $monthEnd])->where('status', 'paid')->sum('amount_paid');
+
             $totalProducts = Product::where('active', true)->count();
             $lowStockCount = Product::whereColumn('stock_qty', '<=', 'alert_qty')->count();
 
             // ── Selected date by payment method ──────────────────────
+            // Credit payments store the outstanding balance (not received cash),
+            // so exclude them from the received breakdown.
             $todayByPayment = DB::table('payments')
                 ->join('sales', 'payments.sale_id', '=', 'sales.id')
                 ->whereDate('sales.created_at', $selectedDate)
                 ->where('sales.status', '!=', 'held')
-                ->selectRaw('payments.method, SUM(payments.amount) as total, COUNT(DISTINCT payments.sale_id) as bills')
+                ->where('payments.method', '!=', 'credit')
+                ->selectRaw('payments.method, SUM(LEAST(payments.amount, sales.total)) as total, COUNT(DISTINCT payments.sale_id) as bills')
                 ->groupBy('payments.method')
                 ->get();
 
@@ -151,7 +162,8 @@ class DashboardController extends Controller
                 ->limit(8)
                 ->get([
                     'sales.id', 'sales.invoice_no',
-                    'sales.total', 'sales.created_at',
+                    'sales.total', 'sales.paid', 'sales.balance',
+                    'sales.created_at',
                     'users.name as user_name',
                 ]);
 
@@ -166,6 +178,8 @@ class DashboardController extends Controller
 
             return compact(
                 'todaySales', 'todayBills', 'monthSales', 'monthBills',
+                'todayTotal', 'monthTotal',
+                'todayInstallments', 'monthInstallments',
                 'totalProducts', 'lowStockCount', 'todayByPayment',
                 'last3Days', 'heatmap', 'fastMoving', 'recentSales', 'expiringSoon'
             );

@@ -8,6 +8,29 @@ const page = usePage();
 const userRole = computed(() => page.props.auth?.user?.role || 'cashier');
 const isCashier = computed(() => userRole.value === 'cashier');
 
+const props = defineProps({
+    todaySales:     { type: Number, default: 0 },
+    todayBills:     { type: Number, default: 0 },
+    todayTotal:         { type: Number, default: 0 },
+    todayInstallments:  { type: Number, default: 0 },
+    monthSales:         { type: Number, default: 0 },
+    monthBills:         { type: Number, default: 0 },
+    monthTotal:         { type: Number, default: 0 },
+    monthInstallments:  { type: Number, default: 0 },
+    totalProducts:  { type: Number, default: 0 },
+    lowStockCount:  { type: Number, default: 0 },
+    todayByPayment: { type: Array,  default: () => [] },
+    last3Days:      { type: Array,  default: () => [] },
+    heatmap:        { type: Array,  default: () => [] },
+    fastMoving:     { type: Array,  default: () => [] },
+    recentSales:    { type: Array,  default: () => [] },
+    expiringSoon:           { type: Array,  default: () => [] },
+    overdueInstallments:    { type: Array,  default: () => [] },
+    upcomingInstallments:   { type: Array,  default: () => [] },
+    filters:  { type: Object, default: () => ({}) },
+    isToday:  { type: Boolean, default: true },
+});
+
 const clearForm = useForm({});
 function clearCache() {
     clearForm.post(route('dashboard.clear-cache'), {
@@ -60,41 +83,6 @@ onMounted(() => {
     }
 });
 onUnmounted(() => clearInterval(_refreshTimer));
-
-const props = defineProps({
-    todaySales:     { type: Number, default: 0 },
-    todayBills:     { type: Number, default: 0 },
-    monthSales:     { type: Number, default: 0 },
-    monthBills:     { type: Number, default: 0 },
-    totalProducts:  { type: Number, default: 0 },
-    lowStockCount:  { type: Number, default: 0 },
-    todayByPayment: { type: Array,  default: () => [] },
-    last3Days:      { type: Array,  default: () => [] },
-    heatmap:        { type: Array,  default: () => [] },
-    fastMoving:     { type: Array,  default: () => [] },
-    recentSales:    { type: Array,  default: () => [] },
-    expiringSoon:           { type: Array,  default: () => [] },
-    overdueInstallments:    { type: Array,  default: () => [] },
-    upcomingInstallments:   { type: Array,  default: () => [] },
-    filters:  { type: Object, default: () => ({}) },
-    isToday:  { type: Boolean, default: true },
-});
-
-// ── Bar chart helpers ──
-const hoveredBar = ref(null);  // { dayIdx, hourIdx }
-
-// hourly rows are compact: [hour, total, bills]
-function chartMax(day) {
-    return Math.max(...day.hourly.map(h => h[1]), 1);
-}
-
-function barHeight(total, max) {
-    return Math.round((total / max) * 100);
-}
-
-function hourLabel(h) {
-    return h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`;
-}
 
 // ── Heatmap helpers ──
 const hoveredCell = ref(null);
@@ -236,6 +224,9 @@ const methodMeta = {
                         <div class="min-w-0">
                             <p class="text-xs text-slate-500 leading-tight">{{ dateLabel || t('dash.today_sales') }}</p>
                             <p class="font-bold text-lg leading-tight truncate" style="color:#15803D;">{{ fmt(todaySales) }}</p>
+                            <p v-if="todayTotal > todaySales" class="text-xs leading-tight" style="color:#DC2626;">
+                                Billed: {{ fmt(todayTotal) }}
+                            </p>
                         </div>
                     </div>
                     <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }}</span></div>
@@ -248,6 +239,9 @@ const methodMeta = {
                         <div class="min-w-0">
                             <p class="text-xs text-slate-500 leading-tight">{{ monthLabel }}</p>
                             <p class="font-bold text-lg leading-tight truncate" style="color:#1D4ED8;">{{ fmt(monthSales) }}</p>
+                            <p v-if="monthTotal > monthSales" class="text-xs leading-tight" style="color:#DC2626;">
+                                Billed: {{ fmt(monthTotal) }}
+                            </p>
                         </div>
                     </div>
                     <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills</span></div>
@@ -278,57 +272,51 @@ const methodMeta = {
                 </Link>
             </div>
 
-            <!-- Bar chart inline -->
+            <!-- Peak Days heatmap inline -->
             <div class="lg:col-span-3 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
                 <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:#F1F5F9;">
                     <div>
-                        <p class="text-sm font-semibold text-gray-800">Sales — Last 3 Days</p>
-                        <p class="text-xs text-slate-400">Hourly breakdown (6am – 10pm)</p>
-                    </div>
-                    <div class="flex gap-3">
-                        <span v-for="(day, di) in last3Days" :key="di"
-                            class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                            :style="di === 2 ? 'background:#DBEAFE;color:#1D4ED8;' : 'background:#F1F5F9;color:#64748B;'">
-                            {{ day.label }}
-                        </span>
+                        <p class="text-sm font-semibold text-gray-800">Peak Days</p>
+                        <p class="text-xs text-slate-400">Sales heatmap — last 10 weeks</p>
                     </div>
                 </div>
-                <div class="px-4 pt-4 pb-2">
-                    <div class="flex gap-4">
-                        <div v-for="(day, di) in last3Days" :key="di" class="flex-1">
-                            <p class="text-xs font-bold mb-2 truncate" :style="di === 2 ? 'color:#1D4ED8;' : 'color:#94A3B8;'">
-                                {{ day.label }}<span class="font-normal ml-1">{{ fmt(day.total) }}</span>
-                            </p>
-                            <div class="relative" style="height:110px;">
-                                <svg width="100%" height="110" class="overflow-visible">
-                                    <g v-for="(h, hi) in day.hourly" :key="hi">
-                                        <rect
-                                            :x="`${(hi / day.hourly.length) * 100}%`"
-                                            :y="110 - barHeight(h[1], chartMax(day))"
-                                            :width="`${(1 / day.hourly.length) * 100 - 1}%`"
-                                            :height="barHeight(h[1], chartMax(day))"
-                                            :fill="h[1] === 0 ? '#F1F5F9' : di === 2 ? '#3B82F6' : '#CBD5E1'"
-                                            :opacity="hoveredBar && hoveredBar.dayIdx === di && hoveredBar.hourIdx === hi ? 1 : 0.85"
-                                            rx="2"
-                                            class="cursor-pointer transition-opacity"
-                                            @mouseenter="hoveredBar = { dayIdx: di, hourIdx: hi, day, h }"
-                                            @mouseleave="hoveredBar = null"
-                                        />
-                                    </g>
-                                </svg>
-                                <div class="flex justify-between mt-1">
-                                    <span v-for="(h, hi) in day.hourly" :key="hi" class="text-center flex-1 text-slate-300" style="font-size:8px; line-height:1;">
-                                        {{ hi % 4 === 0 ? hourLabel(h[0]) : '' }}
-                                    </span>
-                                </div>
+                <div class="px-4 py-3 overflow-x-auto">
+                    <div class="flex gap-1 min-w-0">
+                        <div class="flex flex-col gap-1 mr-1 flex-shrink-0">
+                            <div style="height:16px;"></div>
+                            <div v-for="label in DOW_LABELS" :key="label"
+                                class="flex items-center justify-end"
+                                style="height:16px; font-size:9px; color:#94A3B8; width:22px;">
+                                {{ label }}
                             </div>
-                            <div class="mt-1 text-xs text-slate-400 text-center">{{ day.bills }} bills</div>
+                        </div>
+                        <div class="flex gap-1 flex-1 min-w-0">
+                            <div v-for="(week, wi) in heatmapWeeks" :key="wi" class="flex flex-col gap-1 flex-1 min-w-0">
+                                <div style="height:16px; font-size:8px; color:#94A3B8; text-align:center; overflow:hidden;">
+                                    {{ week[1]?.date?.slice(5,7) === '01' || wi === 0 ? week[1]?.date?.slice(5,7) : '' }}
+                                </div>
+                                <div
+                                    v-for="dow in [1,2,3,4,5,6,7]"
+                                    :key="dow"
+                                    class="rounded-sm cursor-default"
+                                    style="height:16px;"
+                                    :style="`background:${week[dow] ? heatColor(week[dow].total) : '#F8FAFC'};`"
+                                    @mouseenter="week[dow] && (hoveredCell = week[dow])"
+                                    @mouseleave="hoveredCell = null"
+                                ></div>
+                            </div>
                         </div>
                     </div>
-                    <div v-if="hoveredBar" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
-                        <span class="font-semibold text-gray-700">{{ hoveredBar.day.label }} {{ hourLabel(hoveredBar.h[0]) }}:00</span>
-                        — <span style="color:#2563EB;">{{ fmt(hoveredBar.h[1]) }}</span>
-                        <span class="text-slate-400 ml-2">{{ hoveredBar.h[2] }} bill{{ hoveredBar.h[2] !== 1 ? 's' : '' }}</span>
+                    <div class="flex items-center gap-1 mt-3">
+                        <span class="text-slate-400" style="font-size:9px;">Less</span>
+                        <div v-for="c in ['#F1F5F9','#DCFCE7','#86EFAC','#22C55E','#16A34A','#15803D']" :key="c"
+                            class="w-3 h-3 rounded-sm flex-shrink-0" :style="`background:${c};`"></div>
+                        <span class="text-slate-400" style="font-size:9px;">More</span>
+                    </div>
+                    <div v-if="hoveredCell" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
+                        <span class="font-semibold text-gray-700">{{ new Date(hoveredCell.date).toLocaleDateString('en-LK', { weekday:'short', month:'short', day:'numeric' }) }}</span>
+                        — <span style="color:#16A34A;">{{ fmt(hoveredCell.total) }}</span>
+                        <span class="text-slate-400 ml-2">{{ hoveredCell.bills }} bill{{ hoveredCell.bills !== 1 ? 's' : '' }}</span>
                     </div>
                 </div>
             </div>
@@ -342,8 +330,11 @@ const methodMeta = {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#16A34A"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-xs text-slate-500 leading-tight">{{ t('dash.today_sales') }}</p>
+                        <p class="text-xs text-slate-500 leading-tight">{{ dateLabel || t('dash.today_sales') }}</p>
                         <p class="font-bold text-lg leading-tight truncate" style="color:#15803D;">{{ fmt(todaySales) }}</p>
+                        <p v-if="todayTotal > todaySales" class="text-xs leading-tight" style="color:#DC2626;">
+                            Billed: {{ fmt(todayTotal) }}
+                        </p>
                     </div>
                 </div>
                 <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }} today</span></div>
@@ -354,8 +345,11 @@ const methodMeta = {
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#2563EB"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                     </div>
                     <div class="min-w-0">
-                        <p class="text-xs text-slate-500 leading-tight">{{ t('dash.month_sales') }}</p>
+                        <p class="text-xs text-slate-500 leading-tight">{{ monthLabel }}</p>
                         <p class="font-bold text-lg leading-tight truncate" style="color:#1D4ED8;">{{ fmt(monthSales) }}</p>
+                        <p v-if="monthTotal > monthSales" class="text-xs leading-tight" style="color:#DC2626;">
+                            Billed: {{ fmt(monthTotal) }}
+                        </p>
                     </div>
                 </div>
                 <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills this month</span></div>
@@ -416,7 +410,7 @@ const methodMeta = {
         </div>
 
         <!-- ── TODAY PAYMENT SUMMARY ── -->
-        <div v-if="todayByPayment.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div v-if="todayByPayment.length > 0 || todayInstallments > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div
                 v-for="p in todayByPayment"
                 :key="p.method"
@@ -431,6 +425,21 @@ const methodMeta = {
                     <p class="text-xs text-slate-400">{{ (methodMeta[p.method] || { label: p.method }).label }}</p>
                     <p class="font-bold text-sm truncate" :style="`color:${(methodMeta[p.method] || methodMeta.cash).color};`">{{ fmt(p.total) }}</p>
                     <p class="text-xs text-slate-400">{{ p.bills }} {{ p.bills == 1 ? 'bill' : 'bills' }}</p>
+                </div>
+            </div>
+            <!-- Installment collections tile -->
+            <div v-if="todayInstallments > 0"
+                class="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3"
+                style="border:1px solid #E2E8F0;">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#FFF7ED; color:#EA580C;">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs text-slate-400">Installments</p>
+                    <p class="font-bold text-sm truncate" style="color:#EA580C;">{{ fmt(todayInstallments) }}</p>
+                    <p class="text-xs text-slate-400">collected</p>
                 </div>
             </div>
         </div>
@@ -485,55 +494,6 @@ const methodMeta = {
             </div>
         </div>
 
-        <!-- ── HEATMAP (non-cashier only) ── -->
-        <div v-if="!isCashier" class="mb-4 bg-white rounded-xl shadow-sm" style="border:1px solid #E2E8F0;">
-            <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:#F1F5F9;">
-                <div>
-                    <p class="text-sm font-semibold text-gray-800">Peak Days</p>
-                    <p class="text-xs text-slate-400">Sales heatmap — last 10 weeks</p>
-                </div>
-            </div>
-            <div class="px-4 py-3 overflow-x-auto">
-                <div class="flex gap-1 min-w-0">
-                    <div class="flex flex-col gap-1 mr-1 flex-shrink-0">
-                        <div style="height:16px;"></div>
-                        <div v-for="label in DOW_LABELS" :key="label"
-                            class="flex items-center justify-end"
-                            style="height:16px; font-size:9px; color:#94A3B8; width:22px;">
-                            {{ label }}
-                        </div>
-                    </div>
-                    <div class="flex gap-1 flex-1 min-w-0">
-                        <div v-for="(week, wi) in heatmapWeeks" :key="wi" class="flex flex-col gap-1 flex-1 min-w-0">
-                            <div style="height:16px; font-size:8px; color:#94A3B8; text-align:center; overflow:hidden;">
-                                {{ week[1]?.date?.slice(5,7) === '01' || wi === 0 ? week[1]?.date?.slice(5,7) : '' }}
-                            </div>
-                            <div
-                                v-for="dow in [1,2,3,4,5,6,7]"
-                                :key="dow"
-                                class="rounded-sm cursor-default"
-                                style="height:16px;"
-                                :style="`background:${week[dow] ? heatColor(week[dow].total) : '#F8FAFC'};`"
-                                @mouseenter="week[dow] && (hoveredCell = week[dow])"
-                                @mouseleave="hoveredCell = null"
-                            ></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-1 mt-3">
-                    <span class="text-slate-400" style="font-size:9px;">Less</span>
-                    <div v-for="c in ['#F1F5F9','#DCFCE7','#86EFAC','#22C55E','#16A34A','#15803D']" :key="c"
-                        class="w-3 h-3 rounded-sm flex-shrink-0" :style="`background:${c};`"></div>
-                    <span class="text-slate-400" style="font-size:9px;">More</span>
-                </div>
-                <div v-if="hoveredCell" class="mt-2 px-3 py-2 rounded-lg text-xs" style="background:#F8FAFC; border:1px solid #E2E8F0;">
-                    <span class="font-semibold text-gray-700">{{ new Date(hoveredCell.date).toLocaleDateString('en-LK', { weekday:'short', month:'short', day:'numeric' }) }}</span>
-                    — <span style="color:#16A34A;">{{ fmt(hoveredCell.total) }}</span>
-                    <span class="text-slate-400 ml-2">{{ hoveredCell.bills }} bill{{ hoveredCell.bills !== 1 ? 's' : '' }}</span>
-                </div>
-            </div>
-        </div>
-
         <!-- ── MAIN CONTENT GRID ── -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -555,6 +515,9 @@ const methodMeta = {
                         </div>
                         <div class="text-right flex-shrink-0">
                             <p class="text-sm font-bold" style="color:#16A34A;">{{ fmt(sale.total) }}</p>
+                            <p v-if="sale.balance > 0" class="text-xs font-medium" style="color:#DC2626;">
+                                Credit: {{ fmt(sale.balance) }}
+                            </p>
                             <p class="text-xs text-slate-400">{{ formatTime(sale.created_at) }}</p>
                         </div>
                     </div>

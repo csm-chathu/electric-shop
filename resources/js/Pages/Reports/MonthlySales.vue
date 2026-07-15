@@ -39,14 +39,25 @@ function changeMonth() {
         </template>
 
         <!-- Summary -->
-        <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div class="bg-white rounded-xl p-4 shadow-sm" style="border:1px solid #E2E8F0;">
                 <p class="text-xs text-slate-500 mb-1">{{ t('rep.total_sales') }}</p>
                 <p class="text-2xl font-bold" style="color:#2563EB;">{{ summary.total_sales }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow-sm" style="border:1px solid #E2E8F0;">
-                <p class="text-xs text-slate-500 mb-1">{{ t('rep.total_revenue') }}</p>
+                <p class="text-xs text-slate-500 mb-1">{{ t('rep.total_revenue') }} (ලැබූ)</p>
                 <p class="text-xl font-bold" style="color:#16A34A;">{{ fmt(summary.total_revenue) }}</p>
+                <p v-if="summary.total_billed > summary.total_revenue" class="text-xs font-medium mt-0.5" style="color:#DC2626;">
+                    Billed: {{ fmt(summary.total_billed) }}
+                </p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm" style="border:1px solid #E2E8F0;">
+                <p class="text-xs text-slate-500 mb-1">ණය ශේෂය (නොගෙවූ)</p>
+                <p class="text-xl font-bold" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm" style="border:1px solid #FFEDD5;">
+                <p class="text-xs text-slate-500 mb-1">වාරික ගෙවීම්</p>
+                <p class="text-xl font-bold" style="color:#EA580C;">{{ fmt(summary.total_installments) }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow-sm" style="border:1px solid #E2E8F0;">
                 <p class="text-xs text-slate-500 mb-1">{{ t('rep.total_discount') }}</p>
@@ -62,16 +73,27 @@ function changeMonth() {
                         <tr class="text-xs text-slate-500 uppercase" style="background:#F8FAFC; border-bottom:1px solid #E2E8F0;">
                             <th class="px-4 py-3 text-left">{{ t('th.date') }}</th>
                             <th class="px-4 py-3 text-center">{{ t('rep.total_sales') }}</th>
-                            <th class="px-4 py-3 text-right">{{ t('rep.total_revenue') }}</th>
+                            <th class="px-4 py-3 text-right">ලැබූ</th>
+                            <th class="px-4 py-3 text-right">ණය ශේෂය</th>
+                            <th class="px-4 py-3 text-right">වාරික</th>
                             <th class="px-4 py-3 text-right">{{ t('lbl.discount') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="byDay.length === 0"><td colspan="4" class="px-4 py-8 text-center text-slate-400">{{ t('lbl.no_data') }}</td></tr>
+                        <tr v-if="byDay.length === 0"><td colspan="6" class="px-4 py-8 text-center text-slate-400">{{ t('lbl.no_data') }}</td></tr>
                         <tr v-for="row in byDay" :key="row.date" class="hover:bg-slate-50" style="border-bottom:1px solid #F1F5F9;">
                             <td class="px-4 py-2.5 font-medium" style="color:#0F172A;">{{ row.date }}</td>
                             <td class="px-4 py-2.5 text-center text-slate-600">{{ row.count }}</td>
-                            <td class="px-4 py-2.5 text-right font-semibold" style="color:#16A34A;">{{ fmt(row.total) }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold" style="color:#16A34A;">
+                                {{ fmt(row.total) }}
+                                <span v-if="row.billed > row.total" class="block text-xs font-normal" style="color:#DC2626;">{{ fmt(row.billed) }}</span>
+                            </td>
+                            <td class="px-4 py-2.5 text-right font-medium" :style="row.credit_outstanding > 0 ? 'color:#DC2626;' : 'color:#94A3B8;'">
+                                {{ row.credit_outstanding > 0 ? fmt(row.credit_outstanding) : '—' }}
+                            </td>
+                            <td class="px-4 py-2.5 text-right font-medium" :style="row.installments > 0 ? 'color:#EA580C;' : 'color:#94A3B8;'">
+                                {{ row.installments > 0 ? fmt(row.installments) : '—' }}
+                            </td>
                             <td class="px-4 py-2.5 text-right" style="color:#F59E0B;">{{ fmt(row.discount) }}</td>
                         </tr>
                     </tbody>

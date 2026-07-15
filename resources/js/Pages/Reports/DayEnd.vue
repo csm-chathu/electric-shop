@@ -9,6 +9,7 @@ const props = defineProps({
     summary:         { type: Object, default: () => ({}) },
     byPaymentMethod: { type: Array,  default: () => [] },
     sales:           { type: Array,  default: () => [] },
+    installments:    { type: Array,  default: () => [] },
     date:            { type: String, default: '' },
     settings:        { type: Object, default: () => ({}) },
 });
@@ -69,18 +70,26 @@ async function printReport() {
         </template>
 
         <!-- Screen view -->
-        <div class="no-print grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="no-print grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 text-center">
                 <p class="text-xs text-slate-500 mb-1">මුළු ඉන්වොයිස්</p>
                 <p class="text-3xl font-bold text-blue-600">{{ summary.total_bills }}</p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 text-center">
-                <p class="text-xs text-slate-500 mb-1">මුළු ආදායම</p>
+                <p class="text-xs text-slate-500 mb-1">මුළු ආදායම (ලැබූ)</p>
                 <p class="text-2xl font-bold text-green-600">{{ fmt(summary.total_revenue) }}</p>
+                <p v-if="summary.total_billed > summary.total_revenue" class="text-xs font-medium mt-0.5" style="color:#DC2626;">
+                    Billed: {{ fmt(summary.total_billed) }}
+                </p>
             </div>
             <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 text-center">
-                <p class="text-xs text-slate-500 mb-1">මුළු වට්ටම</p>
-                <p class="text-2xl font-bold text-amber-500">{{ fmt(summary.total_discount) }}</p>
+                <p class="text-xs text-slate-500 mb-1">ණය ශේෂය (නොගෙවූ)</p>
+                <p class="text-2xl font-bold" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 text-center" style="border-color:#FFEDD5;">
+                <p class="text-xs text-slate-500 mb-1">වාරික ගෙවීම්</p>
+                <p class="text-2xl font-bold" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
+                <p class="text-xs text-slate-400 mt-0.5">{{ summary.installment_count }} payments</p>
             </div>
         </div>
 
@@ -98,6 +107,14 @@ async function printReport() {
                             <p class="text-xs text-slate-400">{{ pm.count }} ඉන්වොයිස්</p>
                         </div>
                         <p class="font-bold text-green-600">{{ fmt(pm.total) }}</p>
+                    </div>
+                    <!-- Outstanding credit row -->
+                    <div v-if="summary.total_credit > 0" class="flex justify-between items-center py-2">
+                        <div>
+                            <p class="font-medium" style="color:#DC2626;">ණය / Credit</p>
+                            <p class="text-xs text-slate-400">නොගෙවූ ශේෂය</p>
+                        </div>
+                        <p class="font-bold" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
                     </div>
                 </div>
             </div>
@@ -127,11 +144,48 @@ async function printReport() {
                                 </td>
                                 <td class="px-4 py-2.5 text-slate-600">{{ sale.user?.name }}</td>
                                 <td class="px-4 py-2.5 text-right text-slate-400">{{ fmtTime(sale.created_at) }}</td>
-                                <td class="px-4 py-2.5 text-right font-semibold text-green-600">{{ fmt(sale.total) }}</td>
+                                <td class="px-4 py-2.5 text-right">
+                                    <span class="font-semibold text-green-600">{{ fmt(sale.total) }}</span>
+                                    <span v-if="sale.balance > 0" class="block text-xs font-medium" style="color:#DC2626;">
+                                        Credit: {{ fmt(sale.balance) }}
+                                    </span>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- Installment list -->
+        <div v-if="installments.length > 0" class="no-print mt-6 bg-white rounded-xl shadow-sm border border-slate-100" style="border-color:#FFEDD5;">
+            <div class="px-4 py-3 border-b flex items-center gap-2" style="border-color:#FED7AA; background:#FFF7ED;">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#EA580C">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h2 class="font-semibold text-sm" style="color:#C2410C;">වාරික ගෙවීම් / Installment Collections ({{ installments.length }})</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-xs text-slate-500 uppercase bg-orange-50 border-b border-orange-100">
+                            <th class="px-4 py-3 text-left">Plan No</th>
+                            <th class="px-4 py-3 text-left">Customer</th>
+                            <th class="px-4 py-3 text-center">Installment #</th>
+                            <th class="px-4 py-3 text-center">Method</th>
+                            <th class="px-4 py-3 text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="inst in installments" :key="inst.id" class="hover:bg-orange-50 border-b border-slate-50">
+                            <td class="px-4 py-2.5 font-medium text-orange-700">{{ inst.plan?.plan_no }}</td>
+                            <td class="px-4 py-2.5 text-slate-600">{{ inst.plan?.customer?.name }}</td>
+                            <td class="px-4 py-2.5 text-center text-slate-500">#{{ inst.installment_no }}</td>
+                            <td class="px-4 py-2.5 text-center text-slate-500 capitalize">{{ inst.payment_method || '—' }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold" style="color:#EA580C;">{{ fmt(inst.amount_paid) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -188,9 +242,9 @@ async function printReport() {
                     <td class="receipt-label">මුළු වට්ටම</td>
                     <td class="receipt-value" style="text-align:right;">- {{ fmt(summary.total_discount) }}</td>
                 </tr>
-                <tr v-if="Number(summary.total_balance) > 0">
-                    <td class="receipt-label">ණය ශේෂය</td>
-                    <td class="receipt-value" style="text-align:right;">{{ fmt(summary.total_balance) }}</td>
+                <tr v-if="Number(summary.total_credit) > 0">
+                    <td class="receipt-label">ණය ශේෂය (නොගෙවූ)</td>
+                    <td class="receipt-value" style="text-align:right;">{{ fmt(summary.total_credit) }}</td>
                 </tr>
             </table>
 
@@ -198,8 +252,28 @@ async function printReport() {
 
             <!-- Grand total -->
             <div class="receipt-grand-total">
-                <span>මුළු ආදායම</span>
+                <span>මුළු ආදායම (ලැබූ)</span>
                 <span>{{ fmt(summary.total_revenue) }}</span>
+            </div>
+            <div v-if="summary.total_billed > summary.total_revenue" style="display:flex;justify-content:space-between;font-size:11px;padding:1px 0;">
+                <span>Billed Total</span>
+                <span>{{ fmt(summary.total_billed) }}</span>
+            </div>
+
+            <!-- Installments on receipt -->
+            <div v-if="summary.installment_total > 0">
+                <div class="receipt-divider-dashed"></div>
+                <p style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;margin:4px 0 2px;">වාරික ගෙවීම් / Installments</p>
+                <table class="receipt-table">
+                    <tr v-for="inst in installments" :key="inst.id">
+                        <td class="receipt-label">{{ inst.plan?.plan_no }} — #{{ inst.installment_no }}</td>
+                        <td class="receipt-value" style="text-align:right;">{{ fmt(inst.amount_paid) }}</td>
+                    </tr>
+                </table>
+                <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-top:1px dashed #666;margin-top:2px;">
+                    <span>Installments Total</span>
+                    <span>{{ fmt(summary.installment_total) }}</span>
+                </div>
             </div>
 
             <div class="receipt-divider"></div>

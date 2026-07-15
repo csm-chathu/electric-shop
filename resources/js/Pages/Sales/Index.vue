@@ -1,9 +1,24 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ref, watch, computed, inject } from 'vue';
 
 const t = inject('t');
+const isAdmin = computed(() => usePage().props.auth?.user?.role === 'admin');
+
+const deleteTarget  = ref(null);
+const deleteWorking = ref(false);
+
+function confirmDelete(sale) { deleteTarget.value = sale; }
+function cancelDelete()      { if (!deleteWorking.value) deleteTarget.value = null; }
+function executeDelete() {
+    if (!deleteTarget.value) return;
+    deleteWorking.value = true;
+    router.delete(route('sales.destroy', deleteTarget.value.id), {
+        preserveScroll: true,
+        onFinish: () => { deleteWorking.value = false; deleteTarget.value = null; },
+    });
+}
 
 const props = defineProps({
     sales: { type: Object, default: () => ({ data: [], links: [], meta: {} }) },
@@ -173,12 +188,24 @@ const statusClass = {
                         </span>
                     </div>
                 </div>
-                <Link
-                    :href="route('sales.show', sale.id)"
-                    class="block text-center bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] leading-[44px]"
-                >
-                    {{ t('btn.view') }}
-                </Link>
+                <div class="flex gap-2">
+                    <Link
+                        :href="route('sales.show', sale.id)"
+                        class="flex-1 text-center bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] leading-[44px]"
+                    >
+                        {{ t('btn.view') }}
+                    </Link>
+                    <button
+                        v-if="isAdmin"
+                        type="button"
+                        @click="confirmDelete(sale)"
+                        class="px-4 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium min-h-[44px] flex items-center"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -229,12 +256,25 @@ const statusClass = {
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-right">
-                                <Link
-                                    :href="route('sales.show', sale.id)"
-                                    class="text-blue-600 hover:text-blue-800 text-sm font-medium px-3 py-1.5 rounded hover:bg-blue-50 min-h-[36px] inline-flex items-center"
-                                >
-                                    {{ t('btn.view') }}
-                                </Link>
+                                <div class="flex items-center justify-end gap-1">
+                                    <Link
+                                        :href="route('sales.show', sale.id)"
+                                        class="text-blue-600 hover:text-blue-800 text-sm font-medium px-3 py-1.5 rounded hover:bg-blue-50 min-h-[36px] inline-flex items-center"
+                                    >
+                                        {{ t('btn.view') }}
+                                    </Link>
+                                    <button
+                                        v-if="isAdmin"
+                                        type="button"
+                                        @click="confirmDelete(sale)"
+                                        class="text-red-600 hover:text-red-800 text-sm font-medium px-2 py-1.5 rounded hover:bg-red-50 min-h-[36px] inline-flex items-center"
+                                        title="Delete invoice"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -274,4 +314,47 @@ const statusClass = {
             </template>
         </div>
     </AuthenticatedLayout>
+
+    <!-- ── Delete confirmation modal ─────────────────────────────────── -->
+    <Teleport to="body">
+        <Transition name="modal-fade">
+            <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" @click.self="cancelDelete">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                    <!-- Icon -->
+                    <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <!-- Title -->
+                    <h3 class="text-lg font-bold text-center text-gray-900 mb-1">Delete Invoice</h3>
+                    <p class="text-sm text-center text-gray-500 mb-1">
+                        <span class="font-semibold text-gray-800">{{ deleteTarget?.invoice_no }}</span>
+                    </p>
+                    <!-- Info -->
+                    <ul class="text-xs text-gray-500 space-y-1 bg-gray-50 rounded-xl px-4 py-3 mb-5">
+                        <li class="flex items-center gap-2"><span class="text-green-600">✓</span> Product stock will be restored</li>
+                        <li class="flex items-center gap-2"><span class="text-green-600">✓</span> All payments will be removed</li>
+                        <li class="flex items-center gap-2"><span class="text-red-500">✗</span> This action cannot be undone</li>
+                    </ul>
+                    <!-- Buttons -->
+                    <div class="flex gap-3">
+                        <button type="button" @click="cancelDelete" :disabled="deleteWorking"
+                            class="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="button" @click="executeDelete" :disabled="deleteWorking"
+                            class="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors">
+                            {{ deleteWorking ? 'Deleting…' : 'Delete' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+    </Teleport>
 </template>
+
+<style scoped>
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+</style>

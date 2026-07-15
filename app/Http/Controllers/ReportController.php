@@ -31,29 +31,48 @@ class ReportController extends Controller
             ->orderBy('id')
             ->get();
 
+        // Received cash per method (exclude credit — it stores outstanding balance, not received)
         $byPaymentMethod = DB::table('payments')
             ->join('sales', 'payments.sale_id', '=', 'sales.id')
             ->whereDate('sales.created_at', $date)
             ->where('sales.status', '!=', 'held')
-            ->select('payments.method', DB::raw('SUM(payments.amount) as total'), DB::raw('COUNT(DISTINCT payments.sale_id) as count'))
+            ->where('payments.method', '!=', 'credit')
+            ->select('payments.method', DB::raw('SUM(LEAST(payments.amount, sales.total)) as total'), DB::raw('COUNT(DISTINCT payments.sale_id) as count'))
             ->groupBy('payments.method')
             ->get();
 
         $settings = \App\Models\Setting::all()->pluck('value', 'key')->toArray();
 
+        $totalReceived = $sales->sum(fn ($s) => min((float) $s->paid, (float) $s->total));
+        $totalBilled   = $sales->sum('total');
+        $totalCredit   = $sales->sum('balance');
+
+        // Installment payments collected on this date
+        $installments = \App\Models\InstallmentPayment::with(['plan.customer'])
+            ->whereDate('paid_at', $date)
+            ->where('status', 'paid')
+            ->get();
+
+        $installmentTotal = $installments->sum('amount_paid');
+
         $summary = [
-            'total_bills'    => $sales->count(),
-            'total_revenue'  => $sales->sum('total'),
-            'total_discount' => $sales->sum('discount'),
-            'total_tax'      => $sales->sum('tax'),
-            'total_paid'     => $sales->sum('paid'),
-            'total_balance'  => $sales->sum('balance'),
+            'total_bills'         => $sales->count(),
+            'total_revenue'       => $totalReceived,
+            'total_billed'        => $totalBilled,
+            'total_credit'        => $totalCredit,
+            'total_discount'      => $sales->sum('discount'),
+            'total_tax'           => $sales->sum('tax'),
+            'total_paid'          => $sales->sum('paid'),
+            'total_balance'       => $sales->sum('balance'),
+            'installment_total'   => $installmentTotal,
+            'installment_count'   => $installments->count(),
         ];
 
         return Inertia::render('Reports/DayEnd', [
             'summary'         => $summary,
             'byPaymentMethod' => $byPaymentMethod,
             'sales'           => $sales,
+            'installments'    => $installments,
             'date'            => $date->toDateString(),
             'settings'        => $settings,
         ]);
@@ -105,7 +124,9 @@ class ReportController extends Controller
 
         $byDay = Sale::select(
                 DB::raw('DATE(created_at) as date'),
-                DB::raw('SUM(total) as total'),
+                DB::raw('SUM(LEAST(paid, total)) as total'),   // received cash
+                DB::raw('SUM(total) as billed'),               // gross invoiced
+                DB::raw('SUM(balance) as credit_outstanding'), // unpaid credit
                 DB::raw('SUM(discount) as discount'),
                 DB::raw('COUNT(*) as count')
             )
@@ -115,11 +136,34 @@ class ReportController extends Controller
             ->orderBy('date')
             ->get();
 
+        // Installment collections grouped by day for this month
+        $instByDay = \App\Models\InstallmentPayment::select(
+                DB::raw('DATE(paid_at) as date'),
+                DB::raw('SUM(amount_paid) as installments'),
+                DB::raw('COUNT(*) as installments_count')
+            )
+            ->whereBetween('paid_at', [$month->copy()->startOfMonth(), $month->copy()->endOfMonth()])
+            ->where('status', 'paid')
+            ->groupBy(DB::raw('DATE(paid_at)'))
+            ->get()
+            ->keyBy('date');
+
+        // Merge installment data into each day row
+        $byDay = $byDay->map(function ($row) use ($instByDay) {
+            $inst = $instByDay->get($row->date);
+            $row->installments       = $inst ? (float) $inst->installments : 0;
+            $row->installments_count = $inst ? (int)   $inst->installments_count : 0;
+            return $row;
+        });
+
         $summary = [
-            'month'          => $month->format('F Y'),
-            'total_revenue'  => $byDay->sum('total'),
-            'total_discount' => $byDay->sum('discount'),
-            'total_sales'    => $byDay->sum('count'),
+            'month'              => $month->format('F Y'),
+            'total_revenue'      => $byDay->sum('total'),
+            'total_billed'       => $byDay->sum('billed'),
+            'total_credit'       => $byDay->sum('credit_outstanding'),
+            'total_discount'     => $byDay->sum('discount'),
+            'total_sales'        => $byDay->sum('count'),
+            'total_installments' => $instByDay->sum('installments'),
         ];
 
         return Inertia::render('Reports/MonthlySales', [
