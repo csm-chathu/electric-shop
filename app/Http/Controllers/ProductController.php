@@ -133,6 +133,7 @@ class ProductController extends Controller
         }
 
         Cache::forget($this->tenantKey('api_products_all'));
+        DashboardController::bustCache();
 
         // Return JSON for quick-create AJAX calls from purchase form
         if ($request->boolean('quick_create')) {
@@ -242,6 +243,7 @@ class ProductController extends Controller
         $product->update($validated);
 
         Cache::forget($this->tenantKey('api_products_all'));
+        DashboardController::bustCache();
 
         // Sync variants: upsert existing, delete removed
         $keptIds = [];

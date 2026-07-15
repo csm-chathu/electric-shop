@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { inject, computed, ref } from 'vue';
+import { inject, computed, ref, onMounted, onUnmounted } from 'vue';
 
 const t = inject('t');
 const page = usePage();
@@ -14,6 +14,52 @@ function clearCache() {
         onSuccess: () => router.reload(),
     });
 }
+
+// ── Date filter ───────────────────────────────────────────────────────────────
+const dateFilter = ref(props.filters?.date || new Date().toISOString().slice(0, 10));
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function yesterdayStr() {
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+function monthStartStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+const activePeriod = computed(() => {
+    const t = todayStr(), y = yesterdayStr(), m = monthStartStr();
+    if (dateFilter.value === t) return 'today';
+    if (dateFilter.value === y) return 'yesterday';
+    if (dateFilter.value === m) return 'month';
+    return null;
+});
+
+function goDate(date) {
+    dateFilter.value = date;
+    router.get(route('dashboard'), date !== todayStr() ? { date } : {}, { preserveScroll: true });
+}
+
+// date label shown in the stat tile header
+const dateLabel = computed(() => {
+    if (props.isToday) return null;
+    return new Date(dateFilter.value + 'T00:00:00').toLocaleDateString('en-LK', { day: '2-digit', month: 'short', year: 'numeric' });
+});
+
+// month label for the month tile
+const monthLabel = computed(() => {
+    return new Date(dateFilter.value + 'T00:00:00').toLocaleDateString('en-LK', { month: 'long', year: 'numeric' });
+});
+
+// Auto-refresh every 30 s — only when viewing today
+let _refreshTimer = null;
+onMounted(() => {
+    if (props.isToday) {
+        _refreshTimer = setInterval(() => router.reload(), 30_000);
+    }
+});
+onUnmounted(() => clearInterval(_refreshTimer));
 
 const props = defineProps({
     todaySales:     { type: Number, default: 0 },
@@ -30,6 +76,8 @@ const props = defineProps({
     expiringSoon:           { type: Array,  default: () => [] },
     overdueInstallments:    { type: Array,  default: () => [] },
     upcomingInstallments:   { type: Array,  default: () => [] },
+    filters:  { type: Object, default: () => ({}) },
+    isToday:  { type: Boolean, default: true },
 });
 
 // ── Bar chart helpers ──
@@ -127,15 +175,46 @@ const methodMeta = {
     <Head :title="t('page.dashboard')" />
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between w-full">
-                <h1 class="text-xl font-bold text-gray-800">{{ t('page.dashboard') }}</h1>
+            <div class="flex flex-wrap items-center gap-2 w-full">
+                <h1 class="text-xl font-bold text-gray-800 mr-2">{{ t('page.dashboard') }}</h1>
+
+                <!-- Quick period buttons -->
+                <div class="flex gap-1">
+                    <button type="button" @click="goDate(todayStr())"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                        :class="activePeriod === 'today' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                        Today
+                    </button>
+                    <button type="button" @click="goDate(yesterdayStr())"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                        :class="activePeriod === 'yesterday' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                        Yesterday
+                    </button>
+                    <button type="button" @click="goDate(monthStartStr())"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                        :class="activePeriod === 'month' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                        Month Start
+                    </button>
+                </div>
+
+                <!-- Date input -->
+                <input
+                    v-model="dateFilter"
+                    type="date"
+                    :max="todayStr()"
+                    @change="goDate(dateFilter)"
+                    class="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 bg-white"
+                />
+
+                <div class="flex-1"></div>
+
+                <!-- Clear cache (non-cashier) -->
                 <button
                     v-if="!isCashier"
                     type="button"
                     @click="clearCache"
                     :disabled="clearForm.processing"
                     class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 bg-gray-50 hover:bg-red-50 hover:border-red-300 hover:text-red-600 text-gray-500 transition-colors disabled:opacity-50"
-                    title="Clear dashboard cache and reload fresh data"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -155,11 +234,11 @@ const methodMeta = {
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#16A34A"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                         <div class="min-w-0">
-                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.today_sales') }}</p>
+                            <p class="text-xs text-slate-500 leading-tight">{{ dateLabel || t('dash.today_sales') }}</p>
                             <p class="font-bold text-lg leading-tight truncate" style="color:#15803D;">{{ fmt(todaySales) }}</p>
                         </div>
                     </div>
-                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }} today</span></div>
+                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ todayBills }} {{ todayBills === 1 ? 'bill' : 'bills' }}</span></div>
                 </div>
                 <div class="bg-white rounded-xl shadow-sm overflow-hidden" style="border:1px solid #E2E8F0;">
                     <div class="flex items-center gap-3 px-4 pt-4 pb-2">
@@ -167,11 +246,11 @@ const methodMeta = {
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#2563EB"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                         </div>
                         <div class="min-w-0">
-                            <p class="text-xs text-slate-500 leading-tight">{{ t('dash.month_sales') }}</p>
+                            <p class="text-xs text-slate-500 leading-tight">{{ monthLabel }}</p>
                             <p class="font-bold text-lg leading-tight truncate" style="color:#1D4ED8;">{{ fmt(monthSales) }}</p>
                         </div>
                     </div>
-                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills this month</span></div>
+                    <div class="px-4 pb-3"><span class="text-xs text-slate-400">{{ monthBills }} bills</span></div>
                 </div>
                 <Link :href="route('products.index')" class="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style="border:1px solid #E2E8F0;">
                     <div class="flex items-center gap-3 px-4 pt-4 pb-2">

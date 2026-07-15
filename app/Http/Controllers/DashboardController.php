@@ -6,18 +6,25 @@ use App\Models\InstallmentPayment;
 use App\Models\Product;
 use App\Models\Sale;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
+    public static function bustCache(): void
+    {
+        $tenant = config('database.connections.mysql.database');
+        $today  = Carbon::today()->toDateString();
+        Cache::forget($tenant . '_dashboard_' . $today . '_h' . now()->hour);
+    }
+
     public function clearCache()
     {
         $tenant = config('database.connections.mysql.database');
         $today  = Carbon::today()->toDateString();
 
-        // Forget all 24 hourly slots for today
         for ($h = 0; $h <= 23; $h++) {
             Cache::forget($tenant . '_dashboard_' . $today . '_h' . $h);
         }
@@ -25,46 +32,55 @@ class DashboardController extends Controller
         return back()->with('flash', ['success' => 'Dashboard cache cleared.']);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $today = Carbon::today()->toDateString();
-        $hour  = now()->hour;
+        $realToday    = Carbon::today()->toDateString();
+        $selectedDate = $request->filled('date')
+            ? Carbon::parse($request->date)->toDateString()
+            : $realToday;
+        $isToday = $selectedDate === $realToday;
+        $hour    = now()->hour;
 
         $tenant   = config('database.connections.mysql.database');
-        $cacheKey = $tenant . '_dashboard_' . $today . '_h' . $hour;
+        $cacheKey = $isToday
+            ? $tenant . '_dashboard_' . $selectedDate . '_h' . $hour
+            : $tenant . '_dashboard_date_' . $selectedDate;
+        $cacheTtl = $isToday ? 3600 : 86400;
 
-        $data = Cache::remember($cacheKey, 3600, function () use ($today) {
-            $monthStart = Carbon::now()->startOfMonth()->startOfDay();
-            $now        = now();
+        $data = Cache::remember($cacheKey, $cacheTtl, function () use ($selectedDate, $isToday) {
+            $selDate    = Carbon::parse($selectedDate);
+            $monthStart = $selDate->copy()->startOfMonth()->startOfDay();
+            $monthEnd   = $isToday ? now() : $selDate->copy()->endOfDay();
 
-            // ── Scalar stats (4 queries) ──────────────────────────────
+            // ── Scalar stats ──────────────────────────────────────────
             [$todaySales, $todayBills, $monthSales, $monthBills] = [
-                Sale::whereDate('created_at', $today)->where('status', '!=', 'held')->sum('total'),
-                Sale::whereDate('created_at', $today)->where('status', '!=', 'held')->count(),
-                Sale::whereBetween('created_at', [$monthStart, $now])->where('status', '!=', 'held')->sum('total'),
-                Sale::whereBetween('created_at', [$monthStart, $now])->where('status', '!=', 'held')->count(),
+                Sale::whereDate('created_at', $selectedDate)->where('status', '!=', 'held')->sum(DB::raw('LEAST(paid, total)')),
+                Sale::whereDate('created_at', $selectedDate)->where('status', '!=', 'held')->count(),
+                Sale::whereBetween('created_at', [$monthStart, $monthEnd])->where('status', '!=', 'held')->sum(DB::raw('LEAST(paid, total)')),
+                Sale::whereBetween('created_at', [$monthStart, $monthEnd])->where('status', '!=', 'held')->count(),
             ];
 
             $totalProducts = Product::where('active', true)->count();
             $lowStockCount = Product::whereColumn('stock_qty', '<=', 'alert_qty')->count();
 
-            // ── Today by payment method ───────────────────────────────
+            // ── Selected date by payment method ──────────────────────
             $todayByPayment = DB::table('payments')
                 ->join('sales', 'payments.sale_id', '=', 'sales.id')
-                ->whereDate('sales.created_at', $today)
+                ->whereDate('sales.created_at', $selectedDate)
                 ->where('sales.status', '!=', 'held')
                 ->selectRaw('payments.method, SUM(payments.amount) as total, COUNT(DISTINCT payments.sale_id) as bills')
                 ->groupBy('payments.method')
                 ->get();
 
-            // ── Last 3 days hourly (3 queries) ────────────────────────
+            // ── 3 days ending at selected date ────────────────────────
             $last3Days = [];
+            $selCarbon = Carbon::parse($selectedDate);
             for ($i = 2; $i >= 0; $i--) {
-                $date = Carbon::today()->subDays($i)->toDateString();
+                $date = $selCarbon->copy()->subDays($i)->toDateString();
                 $rows = DB::table('sales')
                     ->whereDate('created_at', $date)
                     ->where('status', '!=', 'held')
-                    ->selectRaw('HOUR(created_at) as h, ROUND(SUM(total)) as t, COUNT(*) as b')
+                    ->selectRaw('HOUR(created_at) as h, ROUND(SUM(LEAST(paid, total))) as t, COUNT(*) as b')
                     ->groupBy(DB::raw('HOUR(created_at)'))
                     ->get()
                     ->keyBy('h');
@@ -75,21 +91,25 @@ class DashboardController extends Controller
                     $hourly[] = [(int) $h, (int) ($row->t ?? 0), (int) ($row->b ?? 0)];
                 }
 
+                $label = $i === 0
+                    ? ($isToday ? 'Today' : $selCarbon->format('D d'))
+                    : ($i === 1 && $isToday ? 'Yesterday' : $selCarbon->copy()->subDays($i)->format('D d'));
+
                 $last3Days[] = [
                     'date'   => $date,
-                    'label'  => $i === 0 ? 'Today' : ($i === 1 ? 'Yesterday' : Carbon::today()->subDays($i)->format('D d')),
+                    'label'  => $label,
                     'total'  => (int) collect($rows)->sum('t'),
                     'bills'  => (int) collect($rows)->sum('b'),
-                    'hourly' => $hourly, // compact: [hour, total, bills]
+                    'hourly' => $hourly,
                 ];
             }
 
-            // ── Heatmap — 1 query ─────────────────────────────────────
+            // ── Heatmap — always relative to real today ───────────────
             $heatmapFrom = Carbon::today()->startOfWeek(Carbon::MONDAY)->subWeeks(9);
             $heatmapRows = DB::table('sales')
                 ->where('created_at', '>=', $heatmapFrom)
                 ->where('status', '!=', 'held')
-                ->selectRaw('DATE(created_at) as d, ROUND(SUM(total)) as t, COUNT(*) as b')
+                ->selectRaw('DATE(created_at) as d, ROUND(SUM(LEAST(paid, total))) as t, COUNT(*) as b')
                 ->groupBy(DB::raw('DATE(created_at)'))
                 ->get()
                 ->keyBy('d');
@@ -100,7 +120,6 @@ class DashboardController extends Controller
             while ($cursor->lte($end)) {
                 $ds  = $cursor->toDateString();
                 $row = $heatmapRows->get($ds);
-                // compact: [date, dow, week, total, bills]
                 $heatmap[] = [
                     $ds,
                     $cursor->dayOfWeekIso,
@@ -111,7 +130,7 @@ class DashboardController extends Controller
                 $cursor->addDay();
             }
 
-            // ── Fast moving — 1 query ─────────────────────────────────
+            // ── Fast moving — last 30 days from real today ────────────
             $fastMoving = DB::table('sale_items')
                 ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
                 ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
@@ -123,9 +142,10 @@ class DashboardController extends Controller
                 ->limit(8)
                 ->get();
 
-            // ── Recent sales — 1 join query (no lazy load) ────────────
+            // ── Recent sales for selected date ────────────────────────
             $recentSales = DB::table('sales')
                 ->join('users', 'sales.user_id', '=', 'users.id')
+                ->whereDate('sales.created_at', $selectedDate)
                 ->where('sales.status', '!=', 'held')
                 ->orderByDesc('sales.id')
                 ->limit(8)
@@ -135,7 +155,7 @@ class DashboardController extends Controller
                     'users.name as user_name',
                 ]);
 
-            // ── Expiring soon — 1 query ───────────────────────────────
+            // ── Expiring soon — always real today ─────────────────────
             $expiringSoon = DB::table('products')
                 ->whereNotNull('expiry_date')
                 ->where('expiry_date', '<=', Carbon::today()->addDays(30))
@@ -189,6 +209,8 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', array_merge($data, [
             'overdueInstallments'  => $overdueInstallments,
             'upcomingInstallments' => $upcomingInstallments,
+            'filters'              => ['date' => $selectedDate],
+            'isToday'              => $isToday,
         ]))->with(['flash' => session('flash')]);
     }
 }

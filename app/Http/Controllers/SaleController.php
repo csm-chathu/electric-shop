@@ -302,6 +302,8 @@ class SaleController extends Controller
             return $sale;
         });
 
+        DashboardController::bustCache();
+
         if ($request->boolean('skip_print')) {
             return redirect()->route('sales.create')->with('success', 'විකුණුම සාර්ථකව සුරකින ලදී. #' . $sale->invoice_no);
         }
