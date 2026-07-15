@@ -13,6 +13,7 @@ const props = defineProps({
     todayBills:     { type: Number, default: 0 },
     todayTotal:         { type: Number, default: 0 },
     todayInstallments:  { type: Number, default: 0 },
+    todayCredit:        { type: Number, default: 0 },
     monthSales:         { type: Number, default: 0 },
     monthBills:         { type: Number, default: 0 },
     monthTotal:         { type: Number, default: 0 },
@@ -147,17 +148,7 @@ function expiryLabel(days) {
     return               { text: `${days}d left`,                    cls: 'bg-amber-100 text-amber-700' };
 }
 
-// Total physically received today: all payment methods + installments
-const todayGrandTotal = computed(() =>
-    props.todayByPayment.reduce((s, p) => s + Number(p.total), 0) + Number(props.todayInstallments)
-);
 
-const methodMeta = {
-    cash:   { label: 'Cash',   color: '#16A34A', bg: '#F0FDF4', icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>` },
-    card:   { label: 'Card',   color: '#2563EB', bg: '#EFF6FF', icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>` },
-    credit: { label: 'Credit', color: '#DC2626', bg: '#FEF2F2', icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" /></svg>` },
-    qr:     { label: 'QR',    color: '#7C3AED', bg: '#F5F3FF', icon: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 4h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>` },
-};
 </script>
 
 <template>
@@ -443,66 +434,6 @@ const methodMeta = {
             </Link>
         </div>
 
-        <!-- ── TODAY PAYMENT SUMMARY ── -->
-        <div v-if="todayByPayment.length > 0 || todayInstallments > 0" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" style="align-items:start;">
-            <div
-                v-for="p in todayByPayment"
-                :key="p.method"
-                class="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3"
-                style="border:1px solid #E2E8F0;"
-            >
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                    :style="`background:${(methodMeta[p.method] || methodMeta.cash).bg}; color:${(methodMeta[p.method] || methodMeta.cash).color};`"
-                    v-html="(methodMeta[p.method] || methodMeta.cash).icon">
-                </div>
-                <div class="min-w-0">
-                    <p class="text-xs text-slate-400">{{ (methodMeta[p.method] || { label: p.method }).label }}</p>
-                    <p class="font-bold text-sm truncate" :style="`color:${(methodMeta[p.method] || methodMeta.cash).color};`">{{ fmt(p.total) }}</p>
-                    <p class="text-xs text-slate-400">{{ p.bills }} {{ p.bills == 1 ? 'bill' : 'bills' }}</p>
-                </div>
-            </div>
-            <!-- Installment collections tile -->
-            <div v-if="todayInstallments > 0"
-                class="bg-white rounded-xl px-4 py-3 shadow-sm flex items-center gap-3"
-                style="border:1px solid #E2E8F0;">
-                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#FFF7ED; color:#EA580C;">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                </div>
-                <div class="min-w-0">
-                    <p class="text-xs text-slate-400">Installments</p>
-                    <p class="font-bold text-sm truncate" style="color:#EA580C;">{{ fmt(todayInstallments) }}</p>
-                    <p class="text-xs text-slate-400">collected</p>
-                </div>
-            </div>
-
-            <!-- Grand Total: all payment methods + installments -->
-            <div class="col-span-2 md:col-span-4 rounded-xl px-5 py-3 flex items-center justify-between gap-4"
-                style="background:linear-gradient(135deg,#1E3A5F 0%,#1D4ED8 100%); border:1px solid #1D4ED8;">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(255,255,255,0.15);">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-xs font-medium" style="color:rgba(255,255,255,0.7);">දෛනික මුළු ආදායම / Total Daily Income</p>
-                        <p class="text-xl font-bold text-white">{{ fmt(todayGrandTotal) }}</p>
-                    </div>
-                </div>
-                <div class="text-right text-xs leading-relaxed" style="color:rgba(255,255,255,0.75);">
-                    <p v-for="p in todayByPayment" :key="p.method">
-                        {{ (methodMeta[p.method] || { label: p.method }).label }}
-                        <span class="font-semibold text-white ml-1">{{ fmt(p.total) }}</span>
-                    </p>
-                    <p v-if="todayInstallments > 0">
-                        Installments
-                        <span class="font-semibold ml-1" style="color:#FED7AA;">{{ fmt(todayInstallments) }}</span>
-                    </p>
-                </div>
-            </div>
-        </div>
 
         <!-- ── INSTALLMENT ALERTS (non-cashier only) ── -->
         <div v-if="!isCashier && (overdueInstallments.length > 0 || upcomingInstallments.length > 0)" class="mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">

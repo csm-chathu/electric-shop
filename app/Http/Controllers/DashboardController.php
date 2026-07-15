@@ -68,6 +68,9 @@ class DashboardController extends Controller
             $todayInstallments = InstallmentPayment::whereDate('paid_at', $selectedDate)->where('status', 'paid')->sum('amount_paid');
             $monthInstallments = InstallmentPayment::whereBetween('paid_at', [$monthStart, $monthEnd])->where('status', 'paid')->sum('amount_paid');
 
+            // Credit outstanding from today's sales (unpaid balance)
+            $todayCredit = Sale::whereDate('created_at', $selectedDate)->where('status', '!=', 'held')->sum('balance');
+
             $totalProducts = Product::where('active', true)->count();
             $lowStockCount = Product::whereColumn('stock_qty', '<=', 'alert_qty')->count();
 
@@ -180,6 +183,7 @@ class DashboardController extends Controller
                 'todaySales', 'todayBills', 'monthSales', 'monthBills',
                 'todayTotal', 'monthTotal',
                 'todayInstallments', 'monthInstallments',
+                'todayCredit',
                 'totalProducts', 'lowStockCount', 'todayByPayment',
                 'last3Days', 'heatmap', 'fastMoving', 'recentSales', 'expiringSoon'
             );
