@@ -14,6 +14,7 @@ class SaleReturnController extends Controller
 {
     public function create(Sale $sale)
     {
+        abort_unless(in_array(auth()->user()->role, ['admin', 'cashier']), 403);
         $sale->load(['items.product', 'user', 'customer']);
 
         return Inertia::render('Sales/Return', [
@@ -24,6 +25,7 @@ class SaleReturnController extends Controller
 
     public function store(Request $request, Sale $sale)
     {
+        abort_unless(in_array(auth()->user()->role, ['admin', 'cashier']), 403);
         $request->validate([
             'items'        => 'required|array|min:1',
             'items.*.sale_item_id' => 'required|integer',

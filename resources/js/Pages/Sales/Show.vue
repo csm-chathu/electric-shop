@@ -20,8 +20,8 @@ const footer      = computed(() => props.settings.receipt_footer || '');
 const currency    = computed(() => props.settings.currency     || 'Rs.');
 const logoUrl     = computed(() => props.settings.logo         || null);
 
-const isSplit   = computed(() => (props.sale.payments?.length ?? 0) > 1);
-const isAdmin   = computed(() => usePage().props.auth?.user?.role === 'admin');
+const isAdmin    = computed(() => usePage().props.auth?.user?.role === 'admin');
+const canReturn  = computed(() => ['admin', 'cashier'].includes(usePage().props.auth?.user?.role));
 
 const showDeleteModal = ref(false);
 const deleting        = ref(false);
@@ -39,12 +39,22 @@ function executeDelete() {
     });
 }
 
-const paymentLabel = computed(() => {
-    if (isSplit.value) return tBill('lbl.cash') + ' + ' + tBill('lbl.card');
+// Non-credit payments (cash / card / qr) — these are money actually received
+const paidPayments  = computed(() => props.sale.payments?.filter(p => p.method !== 'credit') ?? []);
+// Credit component — outstanding balance, not received cash
+const creditPayment = computed(() => props.sale.payments?.find(p => p.method === 'credit'));
+// Split only when ≥2 real (non-credit) payment methods were used (e.g. Cash + Card)
+const isSplit       = computed(() => paidPayments.value.length > 1);
+
+function methodLabel(method) {
     const map = { cash: tBill('lbl.cash'), card: tBill('lbl.card'), qr: 'QR', credit: tBill('lbl.credit') };
-    return props.sale.payments?.[0]
-        ? (map[props.sale.payments[0].method] || props.sale.payments[0].method)
-        : '';
+    return map[method] || method;
+}
+
+const paymentLabel = computed(() => {
+    if (paidPayments.value.length === 0) return tBill('lbl.credit');
+    if (isSplit.value) return paidPayments.value.map(p => methodLabel(p.method)).join(' + ');
+    return methodLabel(paidPayments.value[0].method);
 });
 
 function fmtDate(d) {
@@ -154,7 +164,7 @@ onMounted(async () => {
                     </button>
                     <!-- Sales Return -->
                     <Link
-                        v-if="!sale.returns_count"
+                        v-if="canReturn && !sale.returns_count"
                         :href="route('sales.return.create', sale.id)"
                         class="no-print flex items-center gap-2 text-white px-4 py-2 rounded-lg text-sm font-semibold"
                         style="background-color:#DC2626;"
@@ -165,7 +175,7 @@ onMounted(async () => {
                         {{ t('btn.return') }}
                     </Link>
                     <span
-                        v-else
+                        v-else-if="canReturn && sale.returns_count"
                         class="no-print flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold cursor-not-allowed"
                         style="background-color:#FEE2E2; color:#DC2626;"
                         :title="t('btn.return') + ' already processed'"
@@ -319,21 +329,21 @@ onMounted(async () => {
                         <td class="meta-label" style="padding-top:6px;">{{ tBill('lbl.total') }}</td>
                         <td class="meta-value" style="padding-top:6px;">{{ currency }} {{ n(sale.total) }}</td>
                     </tr>
-                    <!-- Split: show cash and card separately -->
+                    <!-- Real (non-credit) payments: one row per method -->
                     <template v-if="isSplit">
-                        <tr style="color:#0F172A; font-weight:800;">
-                            <td class="meta-label">{{ tBill('th.paid') }} ({{ tBill('lbl.cash') }})</td>
-                            <td class="meta-value">{{ n(sale.payments[0]?.amount) }}</td>
-                        </tr>
-                        <tr style="color:#0F172A; font-weight:800;">
-                            <td class="meta-label">{{ tBill('th.paid') }} ({{ tBill('lbl.card') }})</td>
-                            <td class="meta-value">{{ n(sale.payments[1]?.amount) }}</td>
+                        <tr v-for="p in paidPayments" :key="p.id" style="color:#0F172A; font-weight:800;">
+                            <td class="meta-label">{{ tBill('th.paid') }} ({{ methodLabel(p.method) }})</td>
+                            <td class="meta-value">{{ n(p.amount) }}</td>
                         </tr>
                     </template>
-                    <!-- Single payment -->
-                    <tr v-else style="color:#0F172A; font-weight:800;">
+                    <tr v-else-if="paidPayments.length > 0" style="color:#0F172A; font-weight:800;">
                         <td class="meta-label">{{ tBill('th.paid') }} ({{ paymentLabel }})</td>
-                        <td class="meta-value">{{ n(sale.payments?.[0]?.amount) }}</td>
+                        <td class="meta-value">{{ n(paidPayments[0].amount) }}</td>
+                    </tr>
+                    <!-- Credit outstanding balance -->
+                    <tr v-if="creditPayment" style="color:#DC2626; font-weight:800;">
+                        <td class="meta-label">ගෙවිය යුතු ශේෂය</td>
+                        <td class="meta-value">{{ n(creditPayment.amount) }}</td>
                     </tr>
                     <tr v-if="Number(sale.balance) < 0">
                         <td class="meta-label">{{ tBill('lbl.change') }}</td>
@@ -468,20 +478,21 @@ onMounted(async () => {
                                 <td style="padding:12px 14px; color:white; font-weight:900; font-size:15px;">{{ tBill('lbl.total') }}</td>
                                 <td style="padding:12px 14px; text-align:right; color:white; font-weight:900; font-size:15px;">{{ currency }} {{ n(sale.total) }}</td>
                             </tr>
-                            <!-- Payments -->
+                            <!-- Payments: one row per real (non-credit) method -->
                             <template v-if="isSplit">
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:8px 14px; color:#64748B; font-size:12px; font-weight:600;">{{ tBill('th.paid') }} ({{ tBill('lbl.cash') }})</td>
-                                    <td style="padding:8px 14px; text-align:right; font-weight:700; color:#0F172A; font-size:12px;">{{ n(sale.payments[0]?.amount) }}</td>
-                                </tr>
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:8px 14px; color:#64748B; font-size:12px; font-weight:600;">{{ tBill('th.paid') }} ({{ tBill('lbl.card') }})</td>
-                                    <td style="padding:8px 14px; text-align:right; font-weight:700; color:#0F172A; font-size:12px;">{{ n(sale.payments[1]?.amount) }}</td>
+                                <tr v-for="p in paidPayments" :key="p.id" style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:8px 14px; color:#64748B; font-size:12px; font-weight:600;">{{ tBill('th.paid') }} ({{ methodLabel(p.method) }})</td>
+                                    <td style="padding:8px 14px; text-align:right; font-weight:700; color:#0F172A; font-size:12px;">{{ n(p.amount) }}</td>
                                 </tr>
                             </template>
-                            <tr v-else style="border-bottom:1px solid #f1f5f9;">
+                            <tr v-else-if="paidPayments.length > 0" style="border-bottom:1px solid #f1f5f9;">
                                 <td style="padding:8px 14px; color:#64748B; font-size:12px; font-weight:600;">{{ tBill('th.paid') }} ({{ paymentLabel }})</td>
-                                <td style="padding:8px 14px; text-align:right; font-weight:700; color:#0F172A; font-size:12px;">{{ n(sale.payments?.[0]?.amount) }}</td>
+                                <td style="padding:8px 14px; text-align:right; font-weight:700; color:#0F172A; font-size:12px;">{{ n(paidPayments[0].amount) }}</td>
+                            </tr>
+                            <!-- Credit outstanding balance -->
+                            <tr v-if="creditPayment" style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:8px 14px; color:#DC2626; font-size:12px; font-weight:600;">ගෙවිය යුතු ශේෂය</td>
+                                <td style="padding:8px 14px; text-align:right; font-weight:700; color:#DC2626; font-size:12px;">{{ n(creditPayment.amount) }}</td>
                             </tr>
                             <tr v-if="Number(sale.balance) < 0">
                                 <td style="padding:8px 14px; color:#64748B; font-size:12px; font-weight:600;">{{ tBill('lbl.change') }}</td>

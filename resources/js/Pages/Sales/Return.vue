@@ -47,7 +47,14 @@ const returnItems = computed(() =>
 
 const returnTotal = computed(() => returnItems.value.reduce((s, i) => s + i.total, 0));
 
-const RETURN_REASONS = ['Defective', 'Wrong Item', 'Changed Mind', 'Damaged', 'Expired', 'Other'];
+const RETURN_REASONS = [
+    { key: 'ret.reason_defective', value: 'Defective'    },
+    { key: 'ret.reason_wrong',     value: 'Wrong Item'   },
+    { key: 'ret.reason_mind',      value: 'Changed Mind' },
+    { key: 'ret.reason_damaged',   value: 'Damaged'      },
+    { key: 'ret.reason_expired',   value: 'Expired'      },
+    { key: 'ret.reason_other',     value: 'Other'        },
+];
 
 const reason = ref('');
 const submitting = ref(false);
@@ -72,7 +79,7 @@ const form = useForm({});
 
 function submitReturn() {
     if (returnItems.value.length === 0) {
-        errorMsg.value = 'Select at least one item to return.';
+        errorMsg.value = t('ret.err_select');
         return;
     }
     errorMsg.value  = '';
@@ -83,7 +90,7 @@ function submitReturn() {
         reason: reason.value,
     })).post(route('sales.return.store', props.sale.id), {
         onFinish: () => { submitting.value = false; },
-        onError:  (e) => { errorMsg.value = Object.values(e)[0] || 'Error processing return.'; },
+        onError:  (e) => { errorMsg.value = Object.values(e)[0] || t('ret.err_process'); },
     });
 }
 </script>
@@ -99,7 +106,7 @@ function submitReturn() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
                 </Link>
-                <h1 class="text-xl font-bold text-slate-800">Sales Return — {{ sale.invoice_no }}</h1>
+                <h1 class="text-xl font-bold text-slate-800">{{ t('ret.title') }} — {{ sale.invoice_no }}</h1>
                 <span class="ml-2 text-sm text-slate-500">{{ fmtDate(sale.created_at) }}</span>
             </div>
         </template>
@@ -110,11 +117,11 @@ function submitReturn() {
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
                 <div class="flex items-start justify-between mb-4">
                     <div>
-                        <p class="text-sm text-slate-500">Original Invoice</p>
+                        <p class="text-sm text-slate-500">{{ t('ret.original_invoice') }}</p>
                         <p class="text-lg font-bold text-slate-800">{{ sale.invoice_no }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-sm text-slate-500">Original Total</p>
+                        <p class="text-sm text-slate-500">{{ t('ret.original_total') }}</p>
                         <p class="text-lg font-bold text-slate-800">{{ currency }} {{ n(sale.total) }}</p>
                     </div>
                 </div>
@@ -124,11 +131,11 @@ function submitReturn() {
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-slate-200 text-slate-500 text-xs uppercase">
-                                <th class="text-left py-2 pr-3">Product</th>
-                                <th class="text-right py-2 px-3 w-24">Sold Qty</th>
-                                <th class="text-right py-2 px-3 w-28">Unit Price</th>
-                                <th class="text-center py-2 px-3 w-32">Return Qty</th>
-                                <th class="text-right py-2 pl-3 w-28">Return Total</th>
+                                <th class="text-left py-2 pr-3">{{ t('ret.product') }}</th>
+                                <th class="text-right py-2 px-3 w-24">{{ t('ret.sold_qty') }}</th>
+                                <th class="text-right py-2 px-3 w-28">{{ t('ret.unit_price') }}</th>
+                                <th class="text-center py-2 px-3 w-32">{{ t('ret.return_qty') }}</th>
+                                <th class="text-right py-2 pl-3 w-28">{{ t('ret.return_total') }}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -153,8 +160,8 @@ function submitReturn() {
                                             type="button"
                                             @click="selectAll(item)"
                                             class="text-xs text-blue-600 hover:underline whitespace-nowrap"
-                                            title="Return all"
-                                        >All</button>
+                                            :title="t('ret.all')"
+                                        >{{ t('ret.all') }}</button>
                                     </div>
                                 </td>
                                 <td class="text-right py-3 pl-3 font-semibold text-slate-800">
@@ -171,11 +178,11 @@ function submitReturn() {
 
             <!-- Return summary -->
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-                <h2 class="text-base font-bold text-slate-700">Return Summary</h2>
+                <h2 class="text-base font-bold text-slate-700">{{ t('ret.summary') }}</h2>
 
                 <!-- Return total -->
                 <div class="flex items-center justify-between py-3 border-t border-slate-200">
-                    <span class="font-semibold text-slate-600">Return Total</span>
+                    <span class="font-semibold text-slate-600">{{ t('ret.total') }}</span>
                     <span class="text-lg font-bold" :class="returnTotal > 0 ? 'text-red-600' : 'text-slate-400'">
                         {{ currency }} {{ n(returnTotal) }}
                     </span>
@@ -183,23 +190,23 @@ function submitReturn() {
 
                 <!-- Reason -->
                 <div>
-                    <label class="block text-sm font-medium text-slate-600 mb-2">Reason (optional)</label>
+                    <label class="block text-sm font-medium text-slate-600 mb-2">{{ t('ret.reason') }}</label>
                     <div class="flex flex-wrap gap-2 mb-2">
                         <button
                             v-for="r in RETURN_REASONS"
-                            :key="r"
+                            :key="r.value"
                             type="button"
-                            @click="reason = (reason === r ? '' : r)"
+                            @click="reason = (reason === r.value ? '' : r.value)"
                             class="px-3 py-1 rounded-full text-xs font-semibold border transition-colors"
-                            :class="reason === r
+                            :class="reason === r.value
                                 ? 'bg-red-600 text-white border-red-600'
                                 : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'"
-                        >{{ r }}</button>
+                        >{{ t(r.key) }}</button>
                     </div>
                     <input
                         v-model="reason"
                         type="text"
-                        placeholder="Or type a custom reason…"
+                        :placeholder="t('ret.reason_ph')"
                         class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
                     />
                 </div>
@@ -214,7 +221,7 @@ function submitReturn() {
                         @click="clearAll"
                         class="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors"
                     >
-                        Clear
+                        {{ t('ret.clear') }}
                     </button>
                     <button
                         type="button"
@@ -232,7 +239,7 @@ function submitReturn() {
                         <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                         </svg>
-                        {{ submitting ? 'Processing…' : 'Process Return' }}
+                        {{ submitting ? t('ret.processing') : t('ret.process') }}
                     </button>
                 </div>
             </div>

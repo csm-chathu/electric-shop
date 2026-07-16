@@ -81,10 +81,9 @@ const cart             = ref([]);
 const planDate         = ref(todayStr);
 const downPaymentPct   = ref(30);
 const installmentCount = ref(3);
-const customMonths     = ref(3);   // mirrors installmentCount; used by the custom input
 const priceMode        = ref('retail'); // 'retail' | 'wholesale'
 const interestRate     = ref(props.defaultInterestRate);
-const graceEnabled     = ref(props.defaultGraceDays > 0);
+const graceEnabled     = ref(false);
 const dpGraceDays      = ref(props.defaultGraceDays > 0 ? props.defaultGraceDays : 7);
 const notes            = ref('');
 const submitting       = ref(false);
@@ -203,6 +202,11 @@ function onDownPaymentAmtInput(raw) {
     _suppressPctWatch = false;
 }
 
+// Auto-enable grace period when customer pays less than the required down payment
+watch(gracePeriodBalance, (bal) => {
+    if (bal > 0) graceEnabled.value = true;
+});
+
 // Called when user types in the "Initial Payment Received" field
 function onInitialPaidInput(raw) {
     const amt = Math.min(Math.max(0, parseFloat(raw) || 0), downPaymentAmt.value);
@@ -228,15 +232,6 @@ watch(priceMode, () => {
 
 // Installment count helpers
 const presetCounts = [2, 3, 6];
-function setInstallmentCount(n) {
-    installmentCount.value = n;
-    customMonths.value = n;
-}
-function onCustomMonthsInput(val) {
-    const n = Math.max(1, Math.min(360, parseInt(val) || 1));
-    customMonths.value = n;
-    installmentCount.value = n;
-}
 
 // Balance for monthly installments = total − REQUIRED DP (not affected by initial paid amount)
 const balance        = computed(() => Math.max(0, r2(total.value - downPaymentAmt.value)));
@@ -752,24 +747,21 @@ function submit() {
                                 <button
                                     v-for="n in presetCounts" :key="n"
                                     type="button"
-                                    @click="setInstallmentCount(n)"
+                                    @click="installmentCount = n"
                                     class="w-10 py-1.5 rounded-lg text-xs font-bold border transition-colors flex-shrink-0"
                                     :class="installmentCount === n
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'border-gray-200 text-slate-600 hover:bg-slate-50'"
                                 >{{ n }}</button>
-                                <!-- Custom months input -->
+                                <!-- Custom months input — v-model so typing is uninterrupted -->
                                 <div class="flex-1 flex items-center gap-1 rounded-lg px-2 py-1" style="border:1px solid #E2E8F0;">
                                     <input
                                         type="number"
-                                        :value="customMonths"
+                                        v-model.number="installmentCount"
                                         min="1"
-                                        max="360"
                                         step="1"
-                                        class="w-full text-center text-xs font-bold text-blue-700 bg-transparent focus:outline-none"
+                                        class="w-full text-center text-xs font-bold bg-transparent focus:outline-none"
                                         :class="!presetCounts.includes(installmentCount) ? 'text-blue-700' : 'text-slate-400'"
-                                        @change="e => onCustomMonthsInput(e.target.value)"
-                                        @input="e => onCustomMonthsInput(e.target.value)"
                                     />
                                     <span class="text-xs text-slate-400 flex-shrink-0">mo</span>
                                 </div>
