@@ -81,6 +81,8 @@ const cart             = ref([]);
 const planDate         = ref(todayStr);
 const downPaymentPct   = ref(30);
 const installmentCount = ref(3);
+const customMonths     = ref(3);   // mirrors installmentCount; used by the custom input
+const priceMode        = ref('retail'); // 'retail' | 'wholesale'
 const interestRate     = ref(props.defaultInterestRate);
 const graceEnabled     = ref(props.defaultGraceDays > 0);
 const dpGraceDays      = ref(props.defaultGraceDays > 0 ? props.defaultGraceDays : 7);
@@ -134,11 +136,12 @@ function addToCart(product) {
         return;
     }
     const item = {
+        _product:     product,                // keep ref for price-mode switching
         product_id:   product.id,
         product_name: product.name_si ? `${product.name} / ${product.name_si}` : product.name,
         barcode:      product.barcode || '',
         qty:          1,
-        unit_price:   parseFloat(product.selling_price) || 0,
+        unit_price:   effectivePrice(product),
         cost_price:   parseFloat(product.cost_price) || 0,
         discount:     0,
         total:        0,
@@ -207,6 +210,33 @@ function onInitialPaidInput(raw) {
 }
 
 function r2(v) { return Math.round(v * 100) / 100; }
+
+// Price mode helpers
+function effectivePrice(product) {
+    if (priceMode.value === 'wholesale' && parseFloat(product.wholesale_price) > 0) {
+        return parseFloat(product.wholesale_price);
+    }
+    return parseFloat(product.selling_price) || 0;
+}
+
+watch(priceMode, () => {
+    cart.value.forEach(item => {
+        item.unit_price = effectivePrice(item._product);
+        recalc(item);
+    });
+});
+
+// Installment count helpers
+const presetCounts = [2, 3, 6];
+function setInstallmentCount(n) {
+    installmentCount.value = n;
+    customMonths.value = n;
+}
+function onCustomMonthsInput(val) {
+    const n = Math.max(1, Math.min(360, parseInt(val) || 1));
+    customMonths.value = n;
+    installmentCount.value = n;
+}
 
 // Balance for monthly installments = total − REQUIRED DP (not affected by initial paid amount)
 const balance        = computed(() => Math.max(0, r2(total.value - downPaymentAmt.value)));
@@ -534,7 +564,24 @@ function submit() {
 
                 <!-- Product search -->
                 <div class="bg-white rounded-xl shadow-sm p-4" style="border:1px solid #E2E8F0;">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">{{ t('inst.add_items') }}</p>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm font-semibold text-gray-700">{{ t('inst.add_items') }}</p>
+                        <!-- Retail / Wholesale toggle -->
+                        <div class="flex rounded-lg overflow-hidden text-xs font-bold" style="border:1px solid #E2E8F0;">
+                            <button type="button"
+                                @click="priceMode = 'retail'"
+                                class="px-3 py-1.5 transition-colors"
+                                :class="priceMode === 'retail' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'">
+                                Retail
+                            </button>
+                            <button type="button"
+                                @click="priceMode = 'wholesale'"
+                                class="px-3 py-1.5 transition-colors"
+                                :class="priceMode === 'wholesale' ? 'bg-purple-600 text-white' : 'text-slate-500 hover:bg-slate-50'">
+                                Wholesale
+                            </button>
+                        </div>
+                    </div>
                     <div class="relative">
                         <input
                             v-model="searchQuery"
@@ -555,7 +602,10 @@ function submit() {
                                     <p v-if="p.name_si" class="text-xs text-slate-400 truncate">{{ p.name_si }}</p>
                                 </div>
                                 <div class="text-right flex-shrink-0">
-                                    <p class="text-sm font-bold text-blue-700">{{ fmt(p.selling_price) }}</p>
+                                    <p class="text-sm font-bold" :class="priceMode === 'wholesale' ? 'text-purple-700' : 'text-blue-700'">
+                                        {{ fmt(effectivePrice(p)) }}
+                                    </p>
+                                    <p v-if="priceMode === 'wholesale' && p.selling_price" class="text-xs text-slate-400 line-through">{{ fmt(p.selling_price) }}</p>
                                     <p class="text-xs text-slate-400">Stock: {{ p.stock_qty }}</p>
                                 </div>
                             </div>
@@ -564,12 +614,24 @@ function submit() {
 
                     <!-- Cart table -->
                     <div v-if="cart.length > 0" class="mt-3 overflow-x-auto">
+                        <!-- Price mode banner -->
+                        <div v-if="priceMode === 'wholesale'"
+                            class="mb-2 flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg"
+                            style="background:#F3E8FF; color:#7C3AED; border:1px solid #E9D5FF;">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5l6 6v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                            </svg>
+                            Wholesale prices applied
+                        </div>
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b text-left text-slate-500" style="border-color:#E2E8F0;">
                                     <th class="pb-2 font-semibold">Item</th>
                                     <th class="pb-2 font-semibold text-center w-20">Qty</th>
-                                    <th class="pb-2 font-semibold text-right w-28">Price</th>
+                                    <th class="pb-2 font-semibold text-right w-28">
+                                        Price
+                                        <span v-if="priceMode === 'wholesale'" class="ml-1 text-xs text-purple-500">(WS)</span>
+                                    </th>
                                     <th class="pb-2 font-semibold text-right w-28">Total</th>
                                     <th class="pb-2 w-8"></th>
                                 </tr>
@@ -590,7 +652,10 @@ function submit() {
                                             @change="e => updateQty(item, e.target.value)"
                                         />
                                     </td>
-                                    <td class="py-2 text-right text-gray-700">{{ fmt(item.unit_price) }}</td>
+                                    <td class="py-2 text-right"
+                                        :class="priceMode === 'wholesale' ? 'text-purple-700' : 'text-gray-700'">
+                                        {{ fmt(item.unit_price) }}
+                                    </td>
                                     <td class="py-2 text-right font-semibold text-gray-800">{{ fmt(item.total) }}</td>
                                     <td class="py-2 text-center">
                                         <button type="button" @click="removeItem(idx)" class="text-red-400 hover:text-red-600 transition-colors">
@@ -682,16 +747,32 @@ function submit() {
                         <!-- Installment count -->
                         <div>
                             <label class="block text-xs text-slate-500 mb-1">{{ t('inst.inst_count') }}</label>
-                            <div class="flex gap-2">
+                            <div class="flex gap-2 items-center">
+                                <!-- Preset quick-pick buttons -->
                                 <button
-                                    v-for="n in [2, 3, 6, 12]" :key="n"
+                                    v-for="n in presetCounts" :key="n"
                                     type="button"
-                                    @click="installmentCount = n"
-                                    class="flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors"
+                                    @click="setInstallmentCount(n)"
+                                    class="w-10 py-1.5 rounded-lg text-xs font-bold border transition-colors flex-shrink-0"
                                     :class="installmentCount === n
                                         ? 'bg-blue-600 text-white border-blue-600'
                                         : 'border-gray-200 text-slate-600 hover:bg-slate-50'"
                                 >{{ n }}</button>
+                                <!-- Custom months input -->
+                                <div class="flex-1 flex items-center gap-1 rounded-lg px-2 py-1" style="border:1px solid #E2E8F0;">
+                                    <input
+                                        type="number"
+                                        :value="customMonths"
+                                        min="1"
+                                        max="360"
+                                        step="1"
+                                        class="w-full text-center text-xs font-bold text-blue-700 bg-transparent focus:outline-none"
+                                        :class="!presetCounts.includes(installmentCount) ? 'text-blue-700' : 'text-slate-400'"
+                                        @change="e => onCustomMonthsInput(e.target.value)"
+                                        @input="e => onCustomMonthsInput(e.target.value)"
+                                    />
+                                    <span class="text-xs text-slate-400 flex-shrink-0">mo</span>
+                                </div>
                             </div>
                         </div>
 
