@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { inject } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { inject, ref } from 'vue';
 
 const t = inject('t');
 
@@ -13,6 +13,17 @@ const props = defineProps({
     date:            { type: String, default: '' },
     settings:        { type: Object, default: () => ({}) },
 });
+
+const selectedDate = ref(props.date);
+
+function changeDate() {
+    router.get(route('reports.day-end'), { date: selectedDate.value }, { preserveScroll: false });
+}
+
+function localDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+const todayStr = localDate(new Date());
 
 function fmt(v) {
     return 'Rs. ' + Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -47,25 +58,43 @@ async function printReport() {
     <Head title="Day End Report" />
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
                 <div class="flex items-center gap-3">
                     <Link :href="route('reports.index')" class="text-slate-400 hover:text-slate-600">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                         </svg>
                     </Link>
-                    <h1 class="text-xl font-bold" style="color:#0F172A;">දවස් අවසාන වාර්තාව / Day End Report — {{ date }}</h1>
+                    <h1 class="text-xl font-bold" style="color:#0F172A;">දවස් අවසාන වාර්තාව / Day End Report</h1>
                 </div>
-                <button
-                    type="button"
-                    @click="printReport"
-                    class="no-print inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    Print Report
-                </button>
+                <div class="no-print flex items-center gap-3 ml-auto">
+                    <!-- Date picker -->
+                    <div class="flex items-center gap-2">
+                        <button type="button" @click="selectedDate = todayStr; changeDate()"
+                            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                            :class="selectedDate === todayStr ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                            Today
+                        </button>
+                        <input
+                            v-model="selectedDate"
+                            type="date"
+                            :max="todayStr"
+                            @change="changeDate"
+                            class="rounded-lg px-3 py-1.5 text-sm outline-none font-medium"
+                            style="border:1px solid #E2E8F0; color:#0F172A;"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        @click="printReport"
+                        class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print Report
+                    </button>
+                </div>
             </div>
         </template>
 
@@ -99,93 +128,109 @@ async function printReport() {
             </div>
         </div>
 
-        <div class="no-print grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Payment method breakdown -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100">
-                <div class="px-4 py-3 border-b border-slate-100">
-                    <h2 class="font-semibold text-slate-800">ගෙවීම් විස්තරය</h2>
-                </div>
-                <div class="p-4 space-y-3">
-                    <div v-if="byPaymentMethod.length === 0" class="text-center text-slate-400 py-6">අද විකුණුම් නොමැත</div>
-                    <div v-for="pm in byPaymentMethod" :key="pm.method" class="flex justify-between items-center py-2 border-b border-slate-50">
-                        <div>
-                            <p class="font-medium text-slate-800">{{ methodLabel[pm.method] || pm.method }}</p>
-                            <p class="text-xs text-slate-400">{{ pm.count }} ඉන්වොයිස්</p>
-                        </div>
-                        <p class="font-bold text-green-600">{{ fmt(pm.total) }}</p>
-                    </div>
-                    <!-- Outstanding credit row -->
-                    <div v-if="summary.total_credit > 0" class="flex justify-between items-center py-2 border-b border-slate-50">
-                        <div>
-                            <p class="font-medium" style="color:#DC2626;">ණය / Credit</p>
-                            <p class="text-xs text-slate-400">නොගෙවූ ශේෂය</p>
-                        </div>
-                        <p class="font-bold" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
-                    </div>
-                    <!-- Installments row -->
-                    <div v-if="summary.installment_total > 0" class="flex justify-between items-center py-2 border-b border-slate-50">
-                        <div>
-                            <p class="font-medium" style="color:#EA580C;">වාරික / Installments</p>
-                            <p class="text-xs text-slate-400">{{ summary.installment_count }} payments</p>
-                        </div>
-                        <p class="font-bold" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
-                    </div>
-                    <!-- Grand total row -->
-                    <div class="flex justify-between items-center pt-3 mt-1 border-t-2 border-slate-200">
-                        <div>
-                            <p class="font-bold text-slate-800">දෛනික මුළු ආදායම</p>
-                            <p class="text-xs text-slate-400">Total Daily Income</p>
-                        </div>
-                        <p class="text-lg font-bold" style="color:#1D4ED8;">{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</p>
-                    </div>
-                </div>
+        <!-- Payment breakdown (horizontal) -->
+        <div class="no-print bg-white rounded-xl shadow-sm border border-slate-100 mb-6">
+            <div class="px-4 py-3 border-b border-slate-100">
+                <h2 class="font-semibold text-slate-800">ගෙවීම් විස්තරය / Payment Breakdown</h2>
             </div>
-
-            <!-- Invoice list -->
-            <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100">
-                <div class="px-4 py-3 border-b border-slate-100">
-                    <h2 class="font-semibold text-slate-800">ඉන්වොයිස් ලැයිස්තුව ({{ sales.length }})</h2>
+            <div class="flex flex-wrap gap-0 divide-x divide-slate-100">
+                <div v-if="byPaymentMethod.length === 0 && !summary.total_credit && !summary.installment_total"
+                    class="px-6 py-4 text-slate-400 text-sm">
+                    විකුණුම් නොමැත
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
-                                <th class="px-4 py-3 text-left">ඉන්වොයිස්</th>
-                                <th class="px-4 py-3 text-left">කැෂියර්</th>
-                                <th class="px-4 py-3 text-right">වේලාව</th>
-                                <th class="px-4 py-3 text-right">එකතුව</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-if="sales.length === 0">
-                                <td colspan="4" class="px-4 py-8 text-center text-slate-400">අද විකුණුම් නොමැත</td>
-                            </tr>
-                            <tr v-for="sale in sales" :key="sale.id" class="hover:bg-slate-50 border-b border-slate-50">
-                                <td class="px-4 py-2.5 font-medium text-blue-600">
-                                    <Link :href="route('sales.show', sale.id)">{{ sale.invoice_no }}</Link>
-                                </td>
-                                <td class="px-4 py-2.5 text-slate-600">{{ sale.user?.name }}</td>
-                                <td class="px-4 py-2.5 text-right text-slate-400">{{ fmtTime(sale.created_at) }}</td>
-                                <td class="px-4 py-2.5 text-right">
-                                    <span class="font-semibold text-green-600">{{ fmt(sale.total) }}</span>
-                                    <span v-if="sale.balance > 0" class="block text-xs font-medium" style="color:#DC2626;">
-                                        Credit: {{ fmt(sale.balance) }}
-                                    </span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div v-for="pm in byPaymentMethod" :key="pm.method" class="px-6 py-4 flex-1 min-w-[120px]">
+                    <p class="text-xs text-slate-500 mb-0.5">{{ methodLabel[pm.method] || pm.method }}</p>
+                    <p class="font-bold text-green-600 text-lg">{{ fmt(pm.total) }}</p>
+                    <p class="text-xs text-slate-400">{{ pm.count }} ඉන්වොයිස්</p>
+                </div>
+                <div v-if="summary.total_credit > 0" class="px-6 py-4 flex-1 min-w-[120px]">
+                    <p class="text-xs text-slate-500 mb-0.5">ණය / Credit</p>
+                    <p class="font-bold text-lg" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
+                    <p class="text-xs text-slate-400">නොගෙවූ ශේෂය</p>
+                </div>
+                <div v-if="summary.installment_total > 0" class="px-6 py-4 flex-1 min-w-[120px]">
+                    <p class="text-xs text-slate-500 mb-0.5">වාරික / Installments</p>
+                    <p class="font-bold text-lg" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
+                    <p class="text-xs text-slate-400">{{ summary.installment_count }} payments</p>
+                </div>
+                <div class="px-6 py-4 flex-1 min-w-[140px]" style="background:#EFF6FF;">
+                    <p class="text-xs text-slate-500 mb-0.5">දෛනික මුළු ආදායම</p>
+                    <p class="font-bold text-lg" style="color:#1D4ED8;">{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</p>
+                    <p class="text-xs text-slate-400">Total Daily Income</p>
                 </div>
             </div>
         </div>
 
-        <!-- Installment list -->
-        <div v-if="installments.length > 0" class="no-print mt-6 bg-white rounded-xl shadow-sm border border-slate-100" style="border-color:#FFEDD5;">
+        <!-- Invoice list (full width) -->
+        <div class="no-print bg-white rounded-xl shadow-sm border border-slate-100 mb-6">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h2 class="font-semibold text-slate-800">ඉන්වොයිස් ලැයිස්තුව / Invoices
+                    <span class="ml-1 text-xs font-normal text-slate-400">({{ sales.length }})</span>
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                            <th class="px-4 py-3 text-left">ඉන්වොයිස්</th>
+                            <th class="px-4 py-3 text-left">කැෂියර්</th>
+                            <th class="px-4 py-3 text-left">ගෙවීම් ක්‍රමය</th>
+                            <th class="px-4 py-3 text-right">වේලාව</th>
+                            <th class="px-4 py-3 text-right">ඉන්වොයිස් මුදල</th>
+                            <th class="px-4 py-3 text-right">ලැබූ</th>
+                            <th class="px-4 py-3 text-right">ණය</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="sales.length === 0">
+                            <td colspan="7" class="px-4 py-10 text-center text-slate-400">මෙදින විකුණුම් නොමැත</td>
+                        </tr>
+                        <tr v-for="sale in sales" :key="sale.id" class="hover:bg-slate-50 border-b border-slate-50">
+                            <td class="px-4 py-2.5 font-medium text-blue-600">
+                                <Link :href="route('sales.show', sale.id)">{{ sale.invoice_no }}</Link>
+                            </td>
+                            <td class="px-4 py-2.5 text-slate-600">{{ sale.user?.name }}</td>
+                            <td class="px-4 py-2.5">
+                                <span v-for="p in sale.payments" :key="p.id"
+                                    class="inline-block text-xs px-1.5 py-0.5 rounded mr-1 capitalize"
+                                    :style="p.method === 'cash' ? 'background:#DCFCE7;color:#15803D;' : p.method === 'credit' ? 'background:#FEF2F2;color:#DC2626;' : p.method === 'card' ? 'background:#DBEAFE;color:#1D4ED8;' : 'background:#F3E8FF;color:#7C3AED;'">
+                                    {{ p.method }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2.5 text-right text-slate-400">{{ fmtTime(sale.created_at) }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold text-slate-700">{{ fmt(sale.total) }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold text-green-600">{{ fmt(Math.min(Number(sale.paid), Number(sale.total))) }}</td>
+                            <td class="px-4 py-2.5 text-right">
+                                <span v-if="sale.balance > 0" class="font-semibold" style="color:#DC2626;">{{ fmt(sale.balance) }}</span>
+                                <span v-else class="text-slate-300">—</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot v-if="sales.length > 0" class="border-t-2 border-slate-200">
+                        <tr class="bg-slate-50 font-semibold">
+                            <td colspan="4" class="px-4 py-2.5 text-slate-500 text-xs uppercase">එකතුව</td>
+                            <td class="px-4 py-2.5 text-right text-slate-700">{{ fmt(summary.total_billed) }}</td>
+                            <td class="px-4 py-2.5 text-right text-green-600">{{ fmt(summary.total_revenue) }}</td>
+                            <td class="px-4 py-2.5 text-right" style="color:#DC2626;">{{ summary.total_credit > 0 ? fmt(summary.total_credit) : '—' }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Installment collections (full width, always shown) -->
+        <div class="no-print bg-white rounded-xl shadow-sm mb-6" style="border:1px solid #FFEDD5;">
             <div class="px-4 py-3 border-b flex items-center gap-2" style="border-color:#FED7AA; background:#FFF7ED;">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#EA580C">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <h2 class="font-semibold text-sm" style="color:#C2410C;">වාරික ගෙවීම් / Installment Collections ({{ installments.length }})</h2>
+                <h2 class="font-semibold text-sm" style="color:#C2410C;">
+                    වාරික ගෙවීම් / Installment Collections
+                    <span class="font-normal text-xs ml-1" style="color:#EA580C;">({{ installments.length }})</span>
+                </h2>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -194,19 +239,39 @@ async function printReport() {
                             <th class="px-4 py-3 text-left">Plan No</th>
                             <th class="px-4 py-3 text-left">Customer</th>
                             <th class="px-4 py-3 text-center">Installment #</th>
+                            <th class="px-4 py-3 text-center">Due Date</th>
                             <th class="px-4 py-3 text-center">Method</th>
-                            <th class="px-4 py-3 text-right">Amount</th>
+                            <th class="px-4 py-3 text-right">Amount Due</th>
+                            <th class="px-4 py-3 text-right">Amount Paid</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <tr v-if="installments.length === 0">
+                            <td colspan="7" class="px-4 py-10 text-center text-slate-400">මෙදින වාරික ගෙවීම් නොමැත</td>
+                        </tr>
                         <tr v-for="inst in installments" :key="inst.id" class="hover:bg-orange-50 border-b border-slate-50">
                             <td class="px-4 py-2.5 font-medium text-orange-700">{{ inst.plan?.plan_no }}</td>
                             <td class="px-4 py-2.5 text-slate-600">{{ inst.plan?.customer?.name }}</td>
-                            <td class="px-4 py-2.5 text-center text-slate-500">#{{ inst.installment_no }}</td>
-                            <td class="px-4 py-2.5 text-center text-slate-500 capitalize">{{ inst.payment_method || '—' }}</td>
+                            <td class="px-4 py-2.5 text-center text-slate-500">
+                                {{ inst.installment_no === 0 ? 'Down Pmt' : '#' + inst.installment_no }}
+                            </td>
+                            <td class="px-4 py-2.5 text-center text-slate-400 text-xs">{{ inst.due_date }}</td>
+                            <td class="px-4 py-2.5 text-center">
+                                <span class="inline-block text-xs px-1.5 py-0.5 rounded capitalize"
+                                    style="background:#DCFCE7;color:#15803D;">
+                                    {{ inst.payment_method || '—' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-2.5 text-right text-slate-500">{{ fmt(inst.amount_due) }}</td>
                             <td class="px-4 py-2.5 text-right font-semibold" style="color:#EA580C;">{{ fmt(inst.amount_paid) }}</td>
                         </tr>
                     </tbody>
+                    <tfoot v-if="installments.length > 0" class="border-t-2 border-orange-200">
+                        <tr class="bg-orange-50 font-semibold">
+                            <td colspan="6" class="px-4 py-2.5 text-xs uppercase" style="color:#EA580C;">එකතුව</td>
+                            <td class="px-4 py-2.5 text-right" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
