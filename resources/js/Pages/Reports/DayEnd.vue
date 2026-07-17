@@ -135,39 +135,6 @@ async function printReport() {
             </div>
         </div>
 
-        <!-- Payment breakdown (horizontal) -->
-        <div class="no-print bg-white rounded-xl shadow-sm border border-slate-100 mb-6">
-            <div class="px-4 py-3 border-b border-slate-100">
-                <h2 class="font-semibold text-slate-800">ගෙවීම් විස්තරය / Payment Breakdown</h2>
-            </div>
-            <div class="flex flex-wrap gap-0 divide-x divide-slate-100">
-                <div v-if="byPaymentMethod.length === 0 && !summary.total_credit && !summary.installment_total"
-                    class="px-6 py-4 text-slate-400 text-sm">
-                    විකුණුම් නොමැත
-                </div>
-                <div v-for="pm in byPaymentMethod" :key="pm.method" class="px-6 py-4 flex-1 min-w-[120px]">
-                    <p class="text-xs text-slate-500 mb-0.5">{{ methodLabel[pm.method] || pm.method }}</p>
-                    <p class="font-bold text-green-600 text-lg">{{ fmt(pm.total) }}</p>
-                    <p class="text-xs text-slate-400">{{ pm.count }} ඉන්වොයිස්</p>
-                </div>
-                <div v-if="summary.total_credit > 0" class="px-6 py-4 flex-1 min-w-[120px]">
-                    <p class="text-xs text-slate-500 mb-0.5">ණය / Credit</p>
-                    <p class="font-bold text-lg" style="color:#DC2626;">{{ fmt(summary.total_credit) }}</p>
-                    <p class="text-xs text-slate-400">නොගෙවූ ශේෂය</p>
-                </div>
-                <div v-if="summary.installment_total > 0" class="px-6 py-4 flex-1 min-w-[120px]">
-                    <p class="text-xs text-slate-500 mb-0.5">වාරික / Installments</p>
-                    <p class="font-bold text-lg" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</p>
-                    <p class="text-xs text-slate-400">{{ summary.installment_count }} payments</p>
-                </div>
-                <div class="px-6 py-4 flex-1 min-w-[140px]" style="background:#EFF6FF;">
-                    <p class="text-xs text-slate-500 mb-0.5">දෛනික මුළු ආදායම</p>
-                    <p class="font-bold text-lg" style="color:#1D4ED8;">{{ fmt(Number(summary.total_revenue) + Number(summary.installment_total)) }}</p>
-                    <p class="text-xs text-slate-400">Total Daily Income</p>
-                </div>
-            </div>
-        </div>
-
         <!-- Invoice list (full width) -->
         <div class="no-print bg-white rounded-xl shadow-sm border border-slate-100 mb-6">
             <div class="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
@@ -238,24 +205,6 @@ async function printReport() {
                     වාරික ගෙවීම් / Installment Collections
                     <span class="font-normal text-xs ml-1" style="color:#EA580C;">({{ installments.length }})</span>
                 </h2>
-            </div>
-
-            <!-- Summary tiles -->
-            <div class="grid grid-cols-3 gap-4 px-4 py-4" style="background:#FFFBF7;">
-                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
-                    <p class="text-xs text-slate-500 mb-1">Total Value</p>
-                    <p class="text-xl font-bold text-slate-800">{{ fmt(summary.installment_due_total) }}</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
-                    <p class="text-xs text-slate-500 mb-1">Total Paid</p>
-                    <p class="text-xl font-bold text-green-700">{{ fmt(summary.installment_total) }}</p>
-                </div>
-                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
-                    <p class="text-xs text-slate-500 mb-1">Balance Due</p>
-                    <p class="text-xl font-bold" :class="(summary.installment_due_total - summary.installment_total) > 0 ? 'text-red-600' : 'text-slate-400'">
-                        {{ fmt(summary.installment_due_total - summary.installment_total) }}
-                    </p>
-                </div>
             </div>
 
             <div class="overflow-x-auto">
