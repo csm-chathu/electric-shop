@@ -48,24 +48,26 @@ class ReportController extends Controller
         $totalCredit   = $sales->sum('balance');
 
         // Installment payments collected on this date
-        $installments = \App\Models\InstallmentPayment::with(['plan.customer'])
+        $installments = \App\Models\InstallmentPayment::with(['plan.customer', 'plan.payments'])
             ->whereDate('paid_at', $date)
             ->where('status', 'paid')
             ->get();
 
-        $installmentTotal = $installments->sum('amount_paid');
+        $installmentTotal    = $installments->sum('amount_paid');
+        $installmentDueTotal = $installments->sum('amount_due');
 
         $summary = [
-            'total_bills'         => $sales->count(),
-            'total_revenue'       => $totalReceived,
-            'total_billed'        => $totalBilled,
-            'total_credit'        => $totalCredit,
-            'total_discount'      => $sales->sum('discount'),
-            'total_tax'           => $sales->sum('tax'),
-            'total_paid'          => $sales->sum('paid'),
-            'total_balance'       => $sales->sum('balance'),
-            'installment_total'   => $installmentTotal,
-            'installment_count'   => $installments->count(),
+            'total_bills'              => $sales->count(),
+            'total_revenue'            => $totalReceived,
+            'total_billed'             => $totalBilled,
+            'total_credit'             => $totalCredit,
+            'total_discount'           => $sales->sum('discount'),
+            'total_tax'                => $sales->sum('tax'),
+            'total_paid'               => $sales->sum('paid'),
+            'total_balance'            => $sales->sum('balance'),
+            'installment_total'        => $installmentTotal,
+            'installment_due_total'    => $installmentDueTotal,
+            'installment_count'        => $installments->count(),
         ];
 
         return Inertia::render('Reports/DayEnd', [

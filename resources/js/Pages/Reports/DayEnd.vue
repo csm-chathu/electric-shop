@@ -28,6 +28,13 @@ const todayStr = localDate(new Date());
 function fmt(v) {
     return 'Rs. ' + Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+function planTotalPaid(inst) {
+    return (inst.plan?.payments ?? []).reduce((s, p) => s + parseFloat(p.amount_paid || 0), 0);
+}
+function planBalance(inst) {
+    return Math.max(0, (inst.plan?.total ?? 0) - planTotalPaid(inst));
+}
 function fmtTime(d) {
     return d ? new Date(d).toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' }) : '';
 }
@@ -232,6 +239,25 @@ async function printReport() {
                     <span class="font-normal text-xs ml-1" style="color:#EA580C;">({{ installments.length }})</span>
                 </h2>
             </div>
+
+            <!-- Summary tiles -->
+            <div class="grid grid-cols-3 gap-4 px-4 py-4" style="background:#FFFBF7;">
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
+                    <p class="text-xs text-slate-500 mb-1">Total Value</p>
+                    <p class="text-xl font-bold text-slate-800">{{ fmt(summary.installment_due_total) }}</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
+                    <p class="text-xs text-slate-500 mb-1">Total Paid</p>
+                    <p class="text-xl font-bold text-green-700">{{ fmt(summary.installment_total) }}</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 text-center shadow-sm" style="border:1px solid #FED7AA;">
+                    <p class="text-xs text-slate-500 mb-1">Balance Due</p>
+                    <p class="text-xl font-bold" :class="(summary.installment_due_total - summary.installment_total) > 0 ? 'text-red-600' : 'text-slate-400'">
+                        {{ fmt(summary.installment_due_total - summary.installment_total) }}
+                    </p>
+                </div>
+            </div>
+
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
@@ -243,11 +269,14 @@ async function printReport() {
                             <th class="px-4 py-3 text-center">Method</th>
                             <th class="px-4 py-3 text-right">Amount Due</th>
                             <th class="px-4 py-3 text-right">Amount Paid</th>
+                            <th class="px-4 py-3 text-right" style="border-left:2px dashed #FED7AA;">Total Value</th>
+                            <th class="px-4 py-3 text-right">Total Paid</th>
+                            <th class="px-4 py-3 text-right">Balance Due</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="installments.length === 0">
-                            <td colspan="7" class="px-4 py-10 text-center text-slate-400">මෙදින වාරික ගෙවීම් නොමැත</td>
+                            <td colspan="10" class="px-4 py-10 text-center text-slate-400">මෙදින වාරික ගෙවීම් නොමැත</td>
                         </tr>
                         <tr v-for="inst in installments" :key="inst.id" class="hover:bg-orange-50 border-b border-slate-50">
                             <td class="px-4 py-2.5 font-medium text-orange-700">{{ inst.plan?.plan_no }}</td>
@@ -264,12 +293,21 @@ async function printReport() {
                             </td>
                             <td class="px-4 py-2.5 text-right text-slate-500">{{ fmt(inst.amount_due) }}</td>
                             <td class="px-4 py-2.5 text-right font-semibold" style="color:#EA580C;">{{ fmt(inst.amount_paid) }}</td>
+                            <!-- Plan-level summary -->
+                            <td class="px-4 py-2.5 text-right text-slate-700 font-medium" style="border-left:2px dashed #FED7AA;">{{ fmt(inst.plan?.total) }}</td>
+                            <td class="px-4 py-2.5 text-right font-medium text-green-700">{{ fmt(planTotalPaid(inst)) }}</td>
+                            <td class="px-4 py-2.5 text-right font-semibold"
+                                :style="planBalance(inst) > 0 ? 'color:#DC2626;' : 'color:#94A3B8;'">
+                                {{ fmt(planBalance(inst)) }}
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot v-if="installments.length > 0" class="border-t-2 border-orange-200">
                         <tr class="bg-orange-50 font-semibold">
-                            <td colspan="6" class="px-4 py-2.5 text-xs uppercase" style="color:#EA580C;">එකතුව</td>
+                            <td colspan="5" class="px-4 py-2.5 text-xs uppercase" style="color:#EA580C;">එකතුව</td>
+                            <td class="px-4 py-2.5 text-right text-slate-700">{{ fmt(summary.installment_due_total) }}</td>
                             <td class="px-4 py-2.5 text-right" style="color:#EA580C;">{{ fmt(summary.installment_total) }}</td>
+                            <td colspan="3" class="px-4 py-2.5" style="border-left:2px dashed #FED7AA;"></td>
                         </tr>
                     </tfoot>
                 </table>
