@@ -9,9 +9,6 @@ const imageUploadRef = ref(null);
 
 const t = inject('t');
 const promotionsEnabled = computed(() => usePage().props.appSettings?.enable_promotions === '1' || usePage().props.appSettings?.enable_promotions === true);
-const numpadEnabled = inject('numpadEnabled', computed(() => false));
-const openNumpad    = inject('openNumpad', () => {});
-
 const barcodeError = ref('');
 function validateBarcode() {
     const val = form.barcode.trim();
@@ -158,11 +155,11 @@ async function submit() {
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('prod.initial_stock') }}</label>
-                                <input v-model="form.stock_qty" type="number" min="0" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(form.stock_qty, t('prod.initial_stock'), v => form.stock_qty = parseFloat(v) || 0)" />
+                                <input v-model="form.stock_qty" type="number" min="0" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('prod.low_stock_alert') }}</label>
-                                <input v-model="form.alert_qty" type="number" min="0" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(form.alert_qty, t('prod.low_stock_alert'), v => form.alert_qty = parseFloat(v) || 0)" />
+                                <input v-model="form.alert_qty" type="number" min="0" step="0.001" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
                         </div>
 
@@ -202,16 +199,16 @@ async function submit() {
                         <h2 class="font-semibold text-sm text-gray-500 uppercase tracking-wide border-b border-gray-100 pb-2">{{ t('prod.buy_price') }} / {{ t('prod.sell_price') }}</h2>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('prod.buy_price') }}</label>
-                            <input v-model="form.cost_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(form.cost_price, t('prod.buy_price'), v => form.cost_price = v)" />
+                            <input v-model="form.cost_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('prod.sell_price') }} <span class="text-red-500">*</span></label>
-                            <input v-model="form.selling_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" :class="[{ 'border-red-500': form.errors.selling_price }, numpadEnabled ? 'cursor-pointer' : '']" placeholder="0.00" :readonly="numpadEnabled" @click="numpadEnabled && openNumpad(form.selling_price, t('prod.sell_price'), v => form.selling_price = v)" />
+                            <input v-model="form.selling_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" :class="{ 'border-red-500': form.errors.selling_price }" placeholder="0.00" />
                             <p v-if="form.errors.selling_price" class="text-red-500 text-xs mt-1">{{ form.errors.selling_price }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('prod.wholesale_price') }}</label>
-                            <input v-model="form.wholesale_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(form.wholesale_price, t('prod.wholesale_price'), v => form.wholesale_price = v)" />
+                            <input v-model="form.wholesale_price" type="number" step="0.01" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
                         </div>
 
                         <!-- Item expiry date -->
@@ -226,7 +223,7 @@ async function submit() {
                             <p class="text-xs font-semibold text-orange-700 uppercase tracking-wide">Promotional Price</p>
                             <div>
                                 <label class="block text-sm font-medium text-orange-700 mb-1">Promo Price</label>
-                                <input v-model="form.promo_price" type="number" step="0.01" min="0" class="w-full border border-orange-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" :class="[{ 'border-red-500': form.errors.promo_price }, numpadEnabled ? 'cursor-pointer' : '']" placeholder="0.00" :readonly="numpadEnabled" @click="numpadEnabled && openNumpad(form.promo_price, 'Promo Price', v => form.promo_price = v)" />
+                                <input v-model="form.promo_price" type="number" step="0.01" min="0" class="w-full border border-orange-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" :class="{ 'border-red-500': form.errors.promo_price }" placeholder="0.00" />
                                 <p v-if="form.errors.promo_price" class="text-red-500 text-xs mt-1">{{ form.errors.promo_price }}</p>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
@@ -279,9 +276,9 @@ async function submit() {
                             class="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 items-center p-2 rounded-lg bg-gray-50 border border-gray-100"
                         >
                             <input v-model="v.label" type="text" placeholder="100g / 200g / 500g" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full" />
-                            <input v-model="v.selling_price" type="number" step="0.01" min="0" placeholder="Price" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(v.selling_price, t('prod.sell_price'), val => v.selling_price = val)" />
+                            <input v-model="v.selling_price" type="number" step="0.01" min="0" placeholder="Price" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full" />
                             <div>
-                                <input v-model="v.conversion_factor" type="number" step="0.01" min="0.01" placeholder="1" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full" :readonly="numpadEnabled" :class="numpadEnabled ? 'cursor-pointer' : ''" @click="numpadEnabled && openNumpad(v.conversion_factor, 'Conversion Factor', val => v.conversion_factor = val)" />
+                                <input v-model="v.conversion_factor" type="number" step="0.01" min="0.01" placeholder="1" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 w-full" />
                                 <p class="text-xs text-gray-400 mt-0.5 px-1">× base unit</p>
                             </div>
                             <button type="button" @click="removeVariant(i)" class="w-8 h-8 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
